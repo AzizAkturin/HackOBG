@@ -155,7 +155,7 @@ struct Round {
 
 mapping(uint8 => WeightClass) public classes;
 mapping(uint32 => Fighter) public fighters;
-mapping(uint256 => Round) public rounds;
+mapping(uint256 => Round) private _rounds;     // read via rounds(id), which returns the struct as one tuple
 mapping(uint256 => uint32[8]) public roundFighters;     // index -> fighterId
 mapping(uint256 => uint128[8]) public poolByIndex;      // index -> total staked
 mapping(uint256 => uint32[8]) public votesByLabel;      // shuffled label -> votes
@@ -301,7 +301,7 @@ wagmi + viem handle contract calls. Privy plugs in as the wagmi connector, so th
 forge init --template monad-developers/foundry-monad contracts
 
 # deploy (testnet)
-forge script script/Deploy.s.sol --rpc-url https://testnet-rpc.monad.xyz --broadcast --private-key $DEPLOYER_PK
+OPERATOR_ADDRESS=<operator> forge script script/Deploy.s.sol:Deploy --rpc-url https://testnet-rpc.monad.xyz --account deployer --broadcast
 
 # verify on MonadVision (Sourcify, no key)
 forge verify-contract <addr> src/FightClub.sol:FightClub --chain 10143 \
@@ -312,7 +312,7 @@ forge verify-contract <addr> src/FightClub.sol:FightClub --chain 10143 \
   --verifier etherscan --etherscan-api-key $MONADSCAN_KEY --watch
 ```
 
-The deploy script also calls `setWeightClass` for the three classes, `setOperator`, `setTreasury`, and registers the house fighters. After deploy, write the address and deploy block to `packages/shared/deployments/10143.json`. Both the frontend and backend read that file, so redeploying never requires hunting for hardcoded addresses.
+The deploy script also calls `setWeightClass` for the three classes, `setOperator` (from `OPERATOR_ADDRESS`), and `setTreasury` (from `TREASURY_ADDRESS`, defaulting to the owner). House fighters are registered by the backend seed, because `registerFighter` is operator-only. After deploy, run `pnpm contracts:export` to write the address, deploy block and tx hash to `packages/shared/deployments/10143.json` and the ABI to `packages/shared/src/abi/fightClub.ts`. Both the frontend and backend read those files, so redeploying never requires hunting for hardcoded addresses. Full commands are in [contracts/README.md](../contracts/README.md).
 
 ## 11. Known risks and accepted shortcuts
 
