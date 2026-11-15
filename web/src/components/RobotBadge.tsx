@@ -7,7 +7,7 @@ const LINE = { stroke: '#000', strokeOpacity: 0.4 }
 const DARK = '#0d0d0f'
 const MECH = '#2a2b2f'
 
-type Head = (b: Brand) => ReactNode
+type Head = (b: Pick<Brand, 'primary' | 'secondary' | 'glow'>) => ReactNode
 
 const heads: Record<ChassisKey, Head> = {
   bulwark: (b) => (
@@ -131,12 +131,29 @@ const heads: Record<ChassisKey, Head> = {
   ),
 }
 
+/** Plain helmet, used for user avatars (they have colours but no fighter chassis). */
+const helmet: Head = (b) => (
+  <>
+    <rect x="22" y="48" width="20" height="10" rx="2" fill={MECH} />
+    <rect x="15" y="12" width="34" height="36" rx="10" fill={b.primary} {...LINE} />
+    <rect x="29" y="6" width="6" height="14" rx="2" fill={b.secondary} />
+    <rect x="19" y="25" width="26" height="12" rx="3" fill={DARK} />
+    <rect x="22" y="29" width="7" height="3" rx="1" fill={b.glow} />
+    <rect x="35" y="29" width="7" height="3" rx="1" fill={b.glow} />
+    <path d="M26 41 h12" stroke={MECH} strokeWidth="2" />
+    <rect x="15" y="12" width="34" height="8" rx="4" fill="#fff" opacity="0.12" />
+  </>
+)
+
+/** Colours a badge needs. Fighters also pass their chassis; user avatars don't and get the helmet. */
+export type BadgePaint = Pick<Brand, 'primary' | 'secondary' | 'glow'> & { chassis?: ChassisKey }
+
 /** Head portrait of the provider's robot; lit pips show the firmware tier. */
-export function RobotBadge({ brand, firmware, size = 72 }: { brand: Brand; firmware?: Firmware; size?: number }) {
+export function RobotBadge({ brand, firmware, size = 72 }: { brand: BadgePaint; firmware?: Firmware; size?: number }) {
   return (
     <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden>
       <path d="M8 62 Q8 50 20 47 L44 47 Q56 50 56 62 Z" fill={brand.primary} {...LINE} />
-      {heads[brand.chassis](brand)}
+      {(brand.chassis ? heads[brand.chassis] : helmet)(brand)}
       {firmware &&
         [0, 1, 2].map((n) => (
           <rect key={n} x={24 + n * 6} y="54" width="4" height="4" rx="1" fill={n < firmware.pips ? firmware.color : DARK} stroke="#000" strokeOpacity="0.5" />

@@ -1,6 +1,6 @@
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { chain } from "@fightclub/shared";
+import { chain } from "@wab/shared";
 import { env } from "./env.ts";
 
 const transport = http(env.MONAD_RPC_HTTP);

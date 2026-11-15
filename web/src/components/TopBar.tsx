@@ -1,5 +1,10 @@
 import { NavLink } from 'react-router'
+import { formatEther } from 'viem'
+import { useBalance } from 'wagmi'
 import { formatClock, mainEvent, otherFights, roundLabel, type FightStatus } from '../data/mock'
+import { useAuth } from '../wallet/AuthProvider'
+import { chain } from '../wallet/config'
+import { AccountButton } from './AccountButton'
 
 const links = [
   { to: '/', label: 'Fightcenter' },
@@ -29,7 +34,12 @@ const scores = [
   })),
 ]
 
-export function TopBar({ balance }: { balance: number }) {
+export function TopBar() {
+  const { user } = useAuth()
+  // Real wallet balance, shown only when signed in.
+  const bal = useBalance({ address: user?.address, chainId: chain.id, query: { enabled: !!user, refetchInterval: 15_000 } })
+  const mon = bal.data ? Number(formatEther(bal.data.value)) : null
+
   return (
     <header className="relative z-40">
       <div className="flex h-[56px] border-b border-[#d4d4d4] bg-[#f2f2f2] text-[#121212]">
@@ -77,9 +87,12 @@ export function TopBar({ balance }: { balance: number }) {
               <span className="blink h-2 w-2 rounded-full bg-[#d00]" aria-hidden />
               {mainEvent.watching.toLocaleString()} watching
             </span>
-            <span className="hidden tabular-nums sm:inline">
-              <span className="text-[#ffc94a]">◆</span> {balance.toFixed(2)} MON
-            </span>
+            {user && (
+              <span className="hidden tabular-nums sm:inline" title="Your wallet balance on Monad testnet">
+                <span className="text-[#ffc94a]">◆</span> {mon === null ? '…' : mon.toFixed(2)} MON
+              </span>
+            )}
+            <AccountButton />
           </div>
         </div>
       </div>

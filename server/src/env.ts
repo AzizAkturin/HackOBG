@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { privateKeyToAccount } from "viem/accounts";
-import { PUBLIC_RPC_HTTP } from "@fightclub/shared";
+import { PUBLIC_RPC_HTTP } from "@wab/shared";
 
 const hex = (len: number) => z.string().regex(new RegExp(`^0x[0-9a-fA-F]{${len}}$`));
 const optional = <T extends z.ZodType>(schema: T) =>
@@ -8,7 +8,7 @@ const optional = <T extends z.ZodType>(schema: T) =>
 
 const schema = z.object({
   PORT: z.coerce.number().int().default(8787),
-  DB_PATH: z.string().default("./data/fightclub.sqlite"),
+  DB_PATH: z.string().default("./data/wab.sqlite"),
   WEB_ORIGIN: z.string().default("http://localhost:5173"),
   MONAD_RPC_HTTP: z.url().default(PUBLIC_RPC_HTTP),
   MONAD_RPC_WS: optional(z.url()),
@@ -16,7 +16,7 @@ const schema = z.object({
   OPERATOR_ADDRESS: hex(40),
   DRIP_PK: hex(64),
   DRIP_ADDRESS: hex(40),
-  FIGHTCLUB_ADDRESS: optional(hex(40)),
+  WAB_ADDRESS: optional(hex(40)),
   DEPLOY_BLOCK: optional(z.coerce.bigint()),
   NVIDIA_API_KEY: z.string().startsWith("nvapi-"),
   NVIDIA_BASE_URL: z.url().default("https://integrate.api.nvidia.com/v1"),

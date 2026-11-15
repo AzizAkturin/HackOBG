@@ -1,6 +1,6 @@
 # contracts
 
-`FightClub.sol`, the single Fight Club contract on Monad testnet (chain 10143). The spec is [docs/blockchain.md section 5](../docs/blockchain.md#5-contract-specification). Config follows the `monad-developers/foundry-monad` template.
+`WAB.sol`, the single WAB contract on Monad testnet (chain 10143). The spec is [docs/blockchain.md section 5](../docs/blockchain.md#5-contract-specification). Config follows the `monad-developers/foundry-monad` template.
 
 ## Setup
 
@@ -46,7 +46,7 @@ The script does not register fighters. `registerFighter` is operator-only, so th
 pnpm contracts:export
 ```
 
-This writes `packages/shared/src/abi/fightClub.ts` from the build artifact. If `broadcast/Deploy.s.sol/10143/run-latest.json` exists, it also writes `packages/shared/deployments/10143.json` with `address`, `deployBlock`, and `txHash`. Pass `--dry-run` to print instead of write, `--chain <id>` to read another chain's broadcast, and `--broadcast-dir <path>` to read another broadcast folder.
+This writes `packages/shared/src/abi/wab.ts` from the build artifact. If `broadcast/Deploy.s.sol/10143/run-latest.json` exists, it also writes `packages/shared/deployments/10143.json` with `address`, `deployBlock`, and `txHash`. Pass `--dry-run` to print instead of write, `--chain <id>` to read another chain's broadcast, and `--broadcast-dir <path>` to read another broadcast folder.
 
 ## Verify
 
@@ -54,10 +54,10 @@ Replace `<addr>` with the address in `packages/shared/deployments/10143.json`. R
 
 ```bash
 # MonadVision (Sourcify, no key)
-forge verify-contract <addr> src/FightClub.sol:FightClub --chain 10143 \
+forge verify-contract <addr> src/WAB.sol:WAB --chain 10143 \
   --verifier sourcify --verifier-url https://sourcify-api-monad.blockvision.org/
 
 # Monadscan (Etherscan-family key)
-forge verify-contract <addr> src/FightClub.sol:FightClub --chain 10143 \
+forge verify-contract <addr> src/WAB.sol:WAB --chain 10143 \
   --verifier etherscan --etherscan-api-key $MONADSCAN_KEY --watch
 ```

@@ -2,15 +2,15 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {FightClub} from "../src/FightClub.sol";
+import {WAB} from "../src/WAB.sol";
 
 contract ReentrantClaimer {
-    FightClub immutable club;
+    WAB immutable club;
     uint256 public roundId;
     bool public reentryAttempted;
     bool public reentrySucceeded;
 
-    constructor(FightClub c) {
+    constructor(WAB c) {
         club = c;
     }
 
@@ -40,17 +40,17 @@ contract ReentrantClaimer {
 }
 
 contract RejectingReceiver {
-    function enter(FightClub club, uint256 id, uint8 idx) external payable {
+    function enter(WAB club, uint256 id, uint8 idx) external payable {
         club.enter{value: msg.value}(id, idx);
     }
 
-    function claim(FightClub club, uint256 id) external {
+    function claim(WAB club, uint256 id) external {
         club.claim(id);
     }
 }
 
-contract FightClubTest is Test {
-    FightClub club;
+contract WABTest is Test {
+    WAB club;
     address owner = makeAddr("owner");
     address operator = makeAddr("operator");
     address treasury = makeAddr("treasury");
@@ -67,15 +67,15 @@ contract FightClubTest is Test {
     function setUp() public {
         vm.warp(1_000_000);
         vm.startPrank(owner);
-        club = new FightClub();
+        club = new WAB();
         club.setWeightClass(CLASS, _class(MIN_BET, MAX_BET, 500));
         club.setOperator(operator);
         club.setTreasury(treasury);
         vm.stopPrank();
     }
 
-    function _class(uint96 minBet, uint96 maxBet, uint16 rakeBps) internal pure returns (FightClub.WeightClass memory) {
-        return FightClub.WeightClass({
+    function _class(uint96 minBet, uint96 maxBet, uint16 rakeBps) internal pure returns (WAB.WeightClass memory) {
+        return WAB.WeightClass({
             minBet: minBet,
             maxBet: maxBet,
             rakeBps: rakeBps,
@@ -164,7 +164,7 @@ contract FightClubTest is Test {
         _vote(alice, id, 0);
         _settle(id, perm, perm);
 
-        FightClub.Round memory r = club.rounds(id);
+        WAB.Round memory r = club.rounds(id);
         assertEq(r.winnerIndex, 0);
         assertEq(r.rake, 0.5 ether);
         assertEq(club.accruedRake(), 0.5 ether);
@@ -190,7 +190,7 @@ contract FightClubTest is Test {
         address a = _bettor("a");
         _bet(_bettor("b"), id, 1, 1 ether);
         vm.expectEmit(address(club));
-        emit FightClub.Entered(id, a, 0, 0.3 ether, 0.3 ether, 1.3 ether);
+        emit WAB.Entered(id, a, 0, 0.3 ether, 0.3 ether, 1.3 ether);
         _bet(a, id, 0, 0.3 ether);
     }
 
@@ -210,21 +210,21 @@ contract FightClubTest is Test {
         address a = _bettor("a");
         _bet(a, id, 0, 0.1 ether);
         vm.prank(a);
-        vm.expectRevert(FightClub.DifferentFighter.selector);
+        vm.expectRevert(WAB.DifferentFighter.selector);
         club.enter{value: 0.1 ether}(id, 1);
     }
 
     function test_enter_belowMinReverts() public {
         uint256 id = _round(2);
         vm.prank(_bettor("a"));
-        vm.expectRevert(FightClub.BetOutOfRange.selector);
+        vm.expectRevert(WAB.BetOutOfRange.selector);
         club.enter{value: MIN_BET - 1}(id, 0);
     }
 
     function test_enter_aboveMaxReverts() public {
         uint256 id = _round(2);
         vm.prank(_bettor("a"));
-        vm.expectRevert(FightClub.BetOutOfRange.selector);
+        vm.expectRevert(WAB.BetOutOfRange.selector);
         club.enter{value: MAX_BET + 1}(id, 0);
     }
 
@@ -233,7 +233,7 @@ contract FightClubTest is Test {
         address a = _bettor("a");
         _bet(a, id, 0, MAX_BET);
         vm.prank(a);
-        vm.expectRevert(FightClub.BetOutOfRange.selector);
+        vm.expectRevert(WAB.BetOutOfRange.selector);
         club.enter{value: 1}(id, 0);
     }
 
@@ -242,14 +242,14 @@ contract FightClubTest is Test {
         address a = _bettor("a");
         _bet(a, id, 0, MIN_BET);
         vm.prank(a);
-        vm.expectRevert(FightClub.ZeroValue.selector);
+        vm.expectRevert(WAB.ZeroValue.selector);
         club.enter{value: 0}(id, 0);
     }
 
     function test_enter_badFighterIndexReverts() public {
         uint256 id = _round(2);
         vm.prank(_bettor("a"));
-        vm.expectRevert(FightClub.BadFighterIndex.selector);
+        vm.expectRevert(WAB.BadFighterIndex.selector);
         club.enter{value: MIN_BET}(id, 2);
     }
 
@@ -257,13 +257,13 @@ contract FightClubTest is Test {
         uint256 id = _round(2);
         vm.warp(club.rounds(id).lockTime);
         vm.prank(_bettor("a"));
-        vm.expectRevert(FightClub.BettingClosed.selector);
+        vm.expectRevert(WAB.BettingClosed.selector);
         club.enter{value: MIN_BET}(id, 0);
     }
 
     function test_enter_unknownRoundReverts() public {
         vm.prank(_bettor("a"));
-        vm.expectRevert(FightClub.WrongPhase.selector);
+        vm.expectRevert(WAB.WrongPhase.selector);
         club.enter{value: MIN_BET}(42, 0);
     }
 
@@ -271,7 +271,7 @@ contract FightClubTest is Test {
         uint256 id = _round(2);
         _lockAndOpen(id, _identity(2), _identity(2));
         vm.prank(_bettor("a"));
-        vm.expectRevert(FightClub.WrongPhase.selector);
+        vm.expectRevert(WAB.WrongPhase.selector);
         club.enter{value: MIN_BET}(id, 0);
     }
 
@@ -283,7 +283,7 @@ contract FightClubTest is Test {
         address a = _bettor("a");
         _bet(a, id, 0, MIN_BET);
         vm.prank(a);
-        vm.expectRevert(FightClub.BetOutOfRange.selector);
+        vm.expectRevert(WAB.BetOutOfRange.selector);
         club.enter{value: MAX_BET}(id, 0);
 
         _bet(_bettor("b"), id, 1, 1 ether);
@@ -304,11 +304,11 @@ contract FightClubTest is Test {
         club.setPaused(true);
 
         vm.prank(operator);
-        vm.expectRevert(FightClub.Paused.selector);
+        vm.expectRevert(WAB.Paused.selector);
         club.createRound(CLASS, ids, bytes32(0), uint40(block.timestamp + 100));
 
         vm.prank(a);
-        vm.expectRevert(FightClub.Paused.selector);
+        vm.expectRevert(WAB.Paused.selector);
         club.enter{value: 1 ether}(id, 0);
 
         _lockAndOpen(id, _identity(2), _identity(2));
@@ -341,32 +341,32 @@ contract FightClubTest is Test {
         uint40 lock = uint40(block.timestamp + 100);
 
         vm.startPrank(operator);
-        vm.expectRevert(FightClub.BadFighterCount.selector);
+        vm.expectRevert(WAB.BadFighterCount.selector);
         club.createRound(CLASS, one, bytes32(0), lock);
-        vm.expectRevert(FightClub.BadFighterCount.selector);
+        vm.expectRevert(WAB.BadFighterCount.selector);
         club.createRound(CLASS, nine, bytes32(0), lock);
 
         uint32[] memory dup = new uint32[](2);
         (dup[0], dup[1]) = (two[0], two[0]);
-        vm.expectRevert(FightClub.DuplicateFighter.selector);
+        vm.expectRevert(WAB.DuplicateFighter.selector);
         club.createRound(CLASS, dup, bytes32(0), lock);
 
         uint32[] memory unknown = new uint32[](2);
         (unknown[0], unknown[1]) = (two[0], 999);
-        vm.expectRevert(FightClub.UnknownFighter.selector);
+        vm.expectRevert(WAB.UnknownFighter.selector);
         club.createRound(CLASS, unknown, bytes32(0), lock);
 
-        vm.expectRevert(FightClub.BadLockTime.selector);
+        vm.expectRevert(WAB.BadLockTime.selector);
         club.createRound(CLASS, two, bytes32(0), uint40(block.timestamp));
 
-        vm.expectRevert(FightClub.ClassInactive.selector);
+        vm.expectRevert(WAB.ClassInactive.selector);
         club.createRound(7, two, bytes32(0), lock);
         vm.stopPrank();
 
         vm.prank(owner);
         club.setWeightClass(1, _class(MIN_BET, MAX_BET, 500));
         vm.prank(operator);
-        vm.expectRevert(FightClub.FighterClassMismatch.selector);
+        vm.expectRevert(WAB.FighterClassMismatch.selector);
         club.createRound(1, two, bytes32(0), lock);
 
         vm.prank(operator);
@@ -381,15 +381,15 @@ contract FightClubTest is Test {
 
     function test_phaseOf_derivesFightingAfterLock() public {
         uint256 id = _round(2);
-        assertEq(uint8(club.phaseOf(id)), uint8(FightClub.Phase.Open));
+        assertEq(uint8(club.phaseOf(id)), uint8(WAB.Phase.Open));
         vm.warp(club.rounds(id).lockTime);
-        assertEq(uint8(club.phaseOf(id)), uint8(FightClub.Phase.Fighting));
-        assertEq(uint8(club.rounds(id).phase), uint8(FightClub.Phase.Open));
+        assertEq(uint8(club.phaseOf(id)), uint8(WAB.Phase.Fighting));
+        assertEq(uint8(club.rounds(id).phase), uint8(WAB.Phase.Open));
     }
 
     function test_settleDeadline_beforeAndAfterOpenVoting() public {
         uint256 id = _round(2);
-        FightClub.Round memory r = club.rounds(id);
+        WAB.Round memory r = club.rounds(id);
         assertEq(r.settleDeadline, r.lockTime + 600 + VOTE + GRACE);
 
         vm.warp(r.lockTime + 250);
@@ -398,7 +398,7 @@ contract FightClubTest is Test {
         r = club.rounds(id);
         assertEq(r.voteEnd, block.timestamp + VOTE);
         assertEq(r.settleDeadline, block.timestamp + VOTE + GRACE);
-        assertEq(uint8(r.phase), uint8(FightClub.Phase.Voting));
+        assertEq(uint8(r.phase), uint8(WAB.Phase.Voting));
     }
 
     function test_openVoting_rejectsEarlyExpiredZeroAndRepeat() public {
@@ -406,21 +406,21 @@ contract FightClubTest is Test {
         bytes32 commit = _commit(id, _identity(2), _identity(2));
 
         vm.startPrank(operator);
-        vm.expectRevert(FightClub.TooEarly.selector);
+        vm.expectRevert(WAB.TooEarly.selector);
         club.openVoting(id, commit, bytes32(0));
 
         vm.warp(club.rounds(id).lockTime);
-        vm.expectRevert(FightClub.ZeroCommit.selector);
+        vm.expectRevert(WAB.ZeroCommit.selector);
         club.openVoting(id, bytes32(0), bytes32(0));
 
         uint256 snap = vm.snapshotState();
         vm.warp(club.rounds(id).settleDeadline + 1);
-        vm.expectRevert(FightClub.Expired.selector);
+        vm.expectRevert(WAB.Expired.selector);
         club.openVoting(id, commit, bytes32(0));
         vm.revertToState(snap);
 
         club.openVoting(id, commit, bytes32(0));
-        vm.expectRevert(FightClub.WrongPhase.selector);
+        vm.expectRevert(WAB.WrongPhase.selector);
         club.openVoting(id, commit, bytes32(0));
         vm.stopPrank();
     }
@@ -429,7 +429,7 @@ contract FightClubTest is Test {
         uint256 id = _round(2);
         _lockAndOpen(id, _identity(2), _identity(2));
         vm.prank(stranger);
-        vm.expectRevert(FightClub.NoEntry.selector);
+        vm.expectRevert(WAB.NoEntry.selector);
         club.vote(id, 0);
     }
 
@@ -440,7 +440,7 @@ contract FightClubTest is Test {
         _lockAndOpen(id, _identity(2), _identity(2));
         _vote(a, id, 1);
         vm.prank(a);
-        vm.expectRevert(FightClub.AlreadyVoted.selector);
+        vm.expectRevert(WAB.AlreadyVoted.selector);
         club.vote(id, 0);
         assertEq(club.votesByLabel(id, 1), 1);
         assertEq(club.votesByLabel(id, 0), 0);
@@ -452,17 +452,17 @@ contract FightClubTest is Test {
         _bet(a, id, 0, MIN_BET);
 
         vm.prank(a);
-        vm.expectRevert(FightClub.WrongPhase.selector);
+        vm.expectRevert(WAB.WrongPhase.selector);
         club.vote(id, 0);
 
         _lockAndOpen(id, _identity(2), _identity(2));
         vm.prank(a);
-        vm.expectRevert(FightClub.BadLabel.selector);
+        vm.expectRevert(WAB.BadLabel.selector);
         club.vote(id, 2);
 
         vm.warp(club.rounds(id).voteEnd);
         vm.prank(a);
-        vm.expectRevert(FightClub.VotingClosed.selector);
+        vm.expectRevert(WAB.VotingClosed.selector);
         club.vote(id, 0);
     }
 
@@ -532,7 +532,7 @@ contract FightClubTest is Test {
         (judgeRank[0], judgeRank[1], judgeRank[2]) = (1, 0, 2);
         _lockAndOpen(id, perm, judgeRank);
         vm.expectEmit(address(club));
-        emit FightClub.Settled(id, 1, ids[1], perm, 0, 0, true);
+        emit WAB.Settled(id, 1, ids[1], perm, 0, 0, true);
         _settle(id, perm, judgeRank);
 
         (,, uint32 w0, uint32 l0,) = club.fighters(ids[0]);
@@ -547,12 +547,12 @@ contract FightClubTest is Test {
         _lockAndOpen(id, perm, perm);
         vm.warp(club.rounds(id).voteEnd);
         vm.startPrank(operator);
-        vm.expectRevert(FightClub.BadReveal.selector);
+        vm.expectRevert(WAB.BadReveal.selector);
         club.settle(id, perm, perm, keccak256("other salt"));
 
         uint8[] memory swapped = new uint8[](2);
         (swapped[0], swapped[1]) = (1, 0);
-        vm.expectRevert(FightClub.BadReveal.selector);
+        vm.expectRevert(WAB.BadReveal.selector);
         club.settle(id, swapped, perm, SALT);
         vm.stopPrank();
     }
@@ -574,7 +574,7 @@ contract FightClubTest is Test {
         _lockAndOpen(id, labelToIndex, judgeRank);
         vm.warp(club.rounds(id).voteEnd);
         vm.prank(operator);
-        vm.expectRevert(FightClub.NotPermutation.selector);
+        vm.expectRevert(WAB.NotPermutation.selector);
         club.settle(id, labelToIndex, judgeRank, SALT);
     }
 
@@ -583,24 +583,24 @@ contract FightClubTest is Test {
         uint8[] memory perm = _identity(2);
 
         vm.prank(operator);
-        vm.expectRevert(FightClub.WrongPhase.selector);
+        vm.expectRevert(WAB.WrongPhase.selector);
         club.settle(id, perm, perm, SALT);
 
         _lockAndOpen(id, perm, perm);
         vm.prank(operator);
-        vm.expectRevert(FightClub.TooEarly.selector);
+        vm.expectRevert(WAB.TooEarly.selector);
         club.settle(id, perm, perm, SALT);
 
         uint256 snap = vm.snapshotState();
         vm.warp(club.rounds(id).settleDeadline + 1);
         vm.prank(operator);
-        vm.expectRevert(FightClub.Expired.selector);
+        vm.expectRevert(WAB.Expired.selector);
         club.settle(id, perm, perm, SALT);
         vm.revertToState(snap);
 
         _settle(id, perm, perm);
         vm.prank(operator);
-        vm.expectRevert(FightClub.WrongPhase.selector);
+        vm.expectRevert(WAB.WrongPhase.selector);
         club.settle(id, perm, perm, SALT);
     }
 
@@ -616,14 +616,14 @@ contract FightClubTest is Test {
         _lockAndOpen(id, perm, judgeRank);
         _settle(id, perm, judgeRank);
 
-        FightClub.Round memory r = club.rounds(id);
+        WAB.Round memory r = club.rounds(id);
         assertEq(r.winnerIndex, 2);
-        assertEq(uint8(r.phase), uint8(FightClub.Phase.Settled));
+        assertEq(uint8(r.phase), uint8(WAB.Phase.Settled));
         assertEq(r.rake, 0);
         assertEq(club.accruedRake(), 0);
 
         vm.prank(a);
-        vm.expectRevert(FightClub.RefundMode.selector);
+        vm.expectRevert(WAB.RefundMode.selector);
         club.claim(id);
 
         vm.prank(a);
@@ -642,7 +642,7 @@ contract FightClubTest is Test {
         _lockAndOpen(id, _identity(2), _identity(2));
         _settle(id, _identity(2), _identity(2));
         vm.prank(a);
-        vm.expectRevert(FightClub.NotRefundable.selector);
+        vm.expectRevert(WAB.NotRefundable.selector);
         club.refund(id);
     }
 
@@ -654,23 +654,23 @@ contract FightClubTest is Test {
         _bet(l, id, 1, 1 ether);
 
         vm.prank(w);
-        vm.expectRevert(FightClub.WrongPhase.selector);
+        vm.expectRevert(WAB.WrongPhase.selector);
         club.claim(id);
 
         _lockAndOpen(id, _identity(2), _identity(2));
         _settle(id, _identity(2), _identity(2));
 
         vm.prank(l);
-        vm.expectRevert(FightClub.NotWinner.selector);
+        vm.expectRevert(WAB.NotWinner.selector);
         club.claim(id);
         vm.prank(stranger);
-        vm.expectRevert(FightClub.NotWinner.selector);
+        vm.expectRevert(WAB.NotWinner.selector);
         club.claim(id);
 
         vm.prank(w);
         club.claim(id);
         vm.prank(w);
-        vm.expectRevert(FightClub.AlreadyClaimed.selector);
+        vm.expectRevert(WAB.AlreadyClaimed.selector);
         club.claim(id);
     }
 
@@ -680,12 +680,12 @@ contract FightClubTest is Test {
         _bet(a, id, 0, 1 ether);
         vm.prank(operator);
         club.cancel(id);
-        assertEq(uint8(club.rounds(id).phase), uint8(FightClub.Phase.Cancelled));
+        assertEq(uint8(club.rounds(id).phase), uint8(WAB.Phase.Cancelled));
         vm.prank(a);
         club.refund(id);
         assertEq(a.balance, 100 ether);
         vm.prank(a);
-        vm.expectRevert(FightClub.AlreadyClaimed.selector);
+        vm.expectRevert(WAB.AlreadyClaimed.selector);
         club.refund(id);
     }
 
@@ -696,7 +696,7 @@ contract FightClubTest is Test {
         _lockAndOpen(id, _identity(2), _identity(2));
         _vote(a, id, 1);
         vm.expectEmit(address(club));
-        emit FightClub.RoundCancelled(id, operator);
+        emit WAB.RoundCancelled(id, operator);
         vm.prank(operator);
         club.cancel(id);
         vm.prank(a);
@@ -709,13 +709,13 @@ contract FightClubTest is Test {
         _lockAndOpen(id, _identity(2), _identity(2));
         _settle(id, _identity(2), _identity(2));
         vm.prank(operator);
-        vm.expectRevert(FightClub.WrongPhase.selector);
+        vm.expectRevert(WAB.WrongPhase.selector);
         club.cancel(id);
 
         uint256 id2 = _round(2);
         vm.startPrank(operator);
         club.cancel(id2);
-        vm.expectRevert(FightClub.WrongPhase.selector);
+        vm.expectRevert(WAB.WrongPhase.selector);
         club.cancel(id2);
         vm.stopPrank();
     }
@@ -725,12 +725,12 @@ contract FightClubTest is Test {
         address a = _bettor("a");
         _bet(a, id, 0, 1 ether);
         vm.prank(a);
-        vm.expectRevert(FightClub.NotRefundable.selector);
+        vm.expectRevert(WAB.NotRefundable.selector);
         club.refund(id);
         vm.prank(operator);
         club.cancel(id);
         vm.prank(stranger);
-        vm.expectRevert(FightClub.NoEntry.selector);
+        vm.expectRevert(WAB.NoEntry.selector);
         club.refund(id);
     }
 
@@ -742,12 +742,12 @@ contract FightClubTest is Test {
 
         vm.warp(deadline);
         vm.prank(stranger);
-        vm.expectRevert(FightClub.NotExpired.selector);
+        vm.expectRevert(WAB.NotExpired.selector);
         club.cancelExpired(id);
 
         vm.warp(deadline + 1);
         vm.expectEmit(address(club));
-        emit FightClub.RoundCancelled(id, stranger);
+        emit WAB.RoundCancelled(id, stranger);
         vm.prank(stranger);
         club.cancelExpired(id);
         vm.prank(a);
@@ -766,7 +766,7 @@ contract FightClubTest is Test {
 
         vm.warp(deadline);
         vm.prank(stranger);
-        vm.expectRevert(FightClub.NotExpired.selector);
+        vm.expectRevert(WAB.NotExpired.selector);
         club.cancelExpired(id);
 
         vm.warp(deadline + 1);
@@ -783,7 +783,7 @@ contract FightClubTest is Test {
         _settle(id, _identity(2), _identity(2));
         vm.warp(club.rounds(id).settleDeadline + 1);
         vm.prank(stranger);
-        vm.expectRevert(FightClub.WrongPhase.selector);
+        vm.expectRevert(WAB.WrongPhase.selector);
         club.cancelExpired(id);
     }
 
@@ -795,7 +795,7 @@ contract FightClubTest is Test {
         uint256 rake = club.accruedRake();
         assertEq(rake, 0.05 ether);
         vm.startPrank(treasury);
-        vm.expectRevert(FightClub.InsufficientRake.selector);
+        vm.expectRevert(WAB.InsufficientRake.selector);
         club.withdrawRake(rake + 1);
         club.withdrawRake(rake);
         vm.stopPrank();
@@ -804,27 +804,27 @@ contract FightClubTest is Test {
 
     function test_setWeightClass_rejectsInvalidParams() public {
         vm.startPrank(owner);
-        vm.expectRevert(FightClub.InvalidClass.selector);
+        vm.expectRevert(WAB.InvalidClass.selector);
         club.setWeightClass(1, _class(0, 1 ether, 500));
-        vm.expectRevert(FightClub.InvalidClass.selector);
+        vm.expectRevert(WAB.InvalidClass.selector);
         club.setWeightClass(1, _class(2 ether, 1 ether, 500));
-        vm.expectRevert(FightClub.InvalidClass.selector);
+        vm.expectRevert(WAB.InvalidClass.selector);
         club.setWeightClass(1, _class(1 ether, 1 ether, 1001));
         vm.stopPrank();
     }
 
     function test_accessControl_ownerOnly() public {
-        FightClub.WeightClass memory c = _class(MIN_BET, MAX_BET, 500);
+        WAB.WeightClass memory c = _class(MIN_BET, MAX_BET, 500);
         address[2] memory notOwner = [operator, stranger];
         for (uint256 i; i < notOwner.length; ++i) {
             vm.startPrank(notOwner[i]);
-            vm.expectRevert(FightClub.NotOwner.selector);
+            vm.expectRevert(WAB.NotOwner.selector);
             club.setWeightClass(1, c);
-            vm.expectRevert(FightClub.NotOwner.selector);
+            vm.expectRevert(WAB.NotOwner.selector);
             club.setOperator(stranger);
-            vm.expectRevert(FightClub.NotOwner.selector);
+            vm.expectRevert(WAB.NotOwner.selector);
             club.setTreasury(stranger);
-            vm.expectRevert(FightClub.NotOwner.selector);
+            vm.expectRevert(WAB.NotOwner.selector);
             club.setPaused(true);
             vm.stopPrank();
         }
@@ -837,15 +837,15 @@ contract FightClubTest is Test {
         address[2] memory notOperator = [owner, stranger];
         for (uint256 i; i < notOperator.length; ++i) {
             vm.startPrank(notOperator[i]);
-            vm.expectRevert(FightClub.NotOperator.selector);
+            vm.expectRevert(WAB.NotOperator.selector);
             club.registerFighter(house, CLASS, bytes32(0));
-            vm.expectRevert(FightClub.NotOperator.selector);
+            vm.expectRevert(WAB.NotOperator.selector);
             club.createRound(CLASS, ids, bytes32(0), uint40(block.timestamp + 100));
-            vm.expectRevert(FightClub.NotOperator.selector);
+            vm.expectRevert(WAB.NotOperator.selector);
             club.openVoting(id, bytes32(uint256(1)), bytes32(0));
-            vm.expectRevert(FightClub.NotOperator.selector);
+            vm.expectRevert(WAB.NotOperator.selector);
             club.settle(id, perm, perm, SALT);
-            vm.expectRevert(FightClub.NotOperator.selector);
+            vm.expectRevert(WAB.NotOperator.selector);
             club.cancel(id);
             vm.stopPrank();
         }
@@ -855,7 +855,7 @@ contract FightClubTest is Test {
         address[3] memory notTreasury = [owner, operator, stranger];
         for (uint256 i; i < notTreasury.length; ++i) {
             vm.prank(notTreasury[i]);
-            vm.expectRevert(FightClub.NotTreasury.selector);
+            vm.expectRevert(WAB.NotTreasury.selector);
             club.withdrawRake(0);
         }
     }
@@ -866,20 +866,20 @@ contract FightClubTest is Test {
         vm.startPrank(owner);
         club.setOperator(newOp);
         club.setTreasury(newTreasury);
-        vm.expectRevert(FightClub.ZeroAddress.selector);
+        vm.expectRevert(WAB.ZeroAddress.selector);
         club.setOperator(address(0));
-        vm.expectRevert(FightClub.ZeroAddress.selector);
+        vm.expectRevert(WAB.ZeroAddress.selector);
         club.setTreasury(address(0));
         vm.stopPrank();
 
         vm.prank(operator);
-        vm.expectRevert(FightClub.NotOperator.selector);
+        vm.expectRevert(WAB.NotOperator.selector);
         club.registerFighter(house, CLASS, bytes32(0));
         vm.prank(newOp);
         club.registerFighter(house, CLASS, bytes32(0));
 
         vm.prank(treasury);
-        vm.expectRevert(FightClub.NotTreasury.selector);
+        vm.expectRevert(WAB.NotTreasury.selector);
         club.withdrawRake(0);
         vm.prank(newTreasury);
         club.withdrawRake(0);
@@ -898,7 +898,7 @@ contract FightClubTest is Test {
         assertTrue(attacker.reentryAttempted());
         assertFalse(attacker.reentrySucceeded());
         assertEq(address(attacker).balance, 1.425 ether);
-        vm.expectRevert(FightClub.AlreadyClaimed.selector);
+        vm.expectRevert(WAB.AlreadyClaimed.selector);
         attacker.claim();
     }
 
@@ -923,7 +923,7 @@ contract FightClubTest is Test {
         _lockAndOpen(id, _identity(2), _identity(2));
         _settle(id, _identity(2), _identity(2));
 
-        vm.expectRevert(FightClub.TransferFailed.selector);
+        vm.expectRevert(WAB.TransferFailed.selector);
         rejecter.claim(club, id);
         vm.prank(a);
         club.claim(id);
@@ -951,7 +951,7 @@ contract FightClubTest is Test {
         }
         _settle(id, labelToIndex, judgeRank);
 
-        FightClub.Round memory round = club.rounds(id);
+        WAB.Round memory round = club.rounds(id);
         bool refundMode = club.poolByIndex(id, round.winnerIndex) == 0;
         uint256 paid;
         for (uint256 i; i < m; ++i) {

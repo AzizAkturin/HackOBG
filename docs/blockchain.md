@@ -106,7 +106,7 @@ The deadline-based public cancel guarantees that **funds can never be stuck** ev
 
 ## 5. Contract specification
 
-One contract, `FightClub.sol` ([ADR-0003](adr/0003-single-contract.md)). This is the interface spec, not the final code. Names and signatures are the contract between the contracts, backend, and frontend workstreams, so change them only by updating this section and telling the team.
+One contract, `WAB.sol` ([ADR-0003](adr/0003-single-contract.md)). This is the interface spec, not the final code. Names and signatures are the contract between the contracts, backend, and frontend workstreams, so change them only by updating this section and telling the team.
 
 ### 5.1 State
 
@@ -288,7 +288,7 @@ wagmi + viem handle contract calls. Privy plugs in as the wagmi connector, so th
 
 [ADR-0010](adr/0010-chain-reads-and-indexing.md).
 
-- **Frontend live data**: a viem WebSocket client subscribes to `FightClub` logs (`Entered`, `Voted`, `Settled`, and so on) at `latest` and updates the odds board and vote counter immediately. The initial load batches `rounds(id)` and `poolByIndex(id)` reads through Multicall3.
+- **Frontend live data**: a viem WebSocket client subscribes to `WAB` logs (`Entered`, `Voted`, `Settled`, and so on) at `latest` and updates the odds board and vote counter immediately. The initial load batches `rounds(id)` and `poolByIndex(id)` reads through Multicall3.
 - **Backend indexer**: subscribes to logs, plus a catch-up loop over `eth_getLogs` in 100-block pages. It writes rows only once a block is `finalized` and stores `lastIndexedBlock` so it resumes after restarts. This mirror powers match history, profiles and leaderboards. The chain stays the source of truth for money; the DB is a cache.
 - **RPC**: the backend uses a dedicated provider endpoint (Alchemy or QuickNode free tier) because the public RPC caps at 20 rps. The frontend may use the public RPC, since each user generates little traffic.
 
@@ -304,15 +304,15 @@ forge init --template monad-developers/foundry-monad contracts
 OPERATOR_ADDRESS=<operator> forge script script/Deploy.s.sol:Deploy --rpc-url https://testnet-rpc.monad.xyz --account deployer --broadcast
 
 # verify on MonadVision (Sourcify, no key)
-forge verify-contract <addr> src/FightClub.sol:FightClub --chain 10143 \
+forge verify-contract <addr> src/WAB.sol:WAB --chain 10143 \
   --verifier sourcify --verifier-url https://sourcify-api-monad.blockvision.org/
 
 # verify on Monadscan (Etherscan-family key)
-forge verify-contract <addr> src/FightClub.sol:FightClub --chain 10143 \
+forge verify-contract <addr> src/WAB.sol:WAB --chain 10143 \
   --verifier etherscan --etherscan-api-key $MONADSCAN_KEY --watch
 ```
 
-The deploy script also calls `setWeightClass` for the three classes, `setOperator` (from `OPERATOR_ADDRESS`), and `setTreasury` (from `TREASURY_ADDRESS`, defaulting to the owner). House fighters are registered by the backend seed, because `registerFighter` is operator-only. After deploy, run `pnpm contracts:export` to write the address, deploy block and tx hash to `packages/shared/deployments/10143.json` and the ABI to `packages/shared/src/abi/fightClub.ts`. Both the frontend and backend read those files, so redeploying never requires hunting for hardcoded addresses. Full commands are in [contracts/README.md](../contracts/README.md).
+The deploy script also calls `setWeightClass` for the three classes, `setOperator` (from `OPERATOR_ADDRESS`), and `setTreasury` (from `TREASURY_ADDRESS`, defaulting to the owner). House fighters are registered by the backend seed, because `registerFighter` is operator-only. After deploy, run `pnpm contracts:export` to write the address, deploy block and tx hash to `packages/shared/deployments/10143.json` and the ABI to `packages/shared/src/abi/wab.ts`. Both the frontend and backend read those files, so redeploying never requires hunting for hardcoded addresses. Full commands are in [contracts/README.md](../contracts/README.md).
 
 ## 11. Known risks and accepted shortcuts
 

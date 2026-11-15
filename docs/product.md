@@ -69,14 +69,14 @@ The arena changes with the task category, so every task can be watched. All aren
 
 | Category | Arena | Flavor |
 | --- | --- | --- |
-| `pitch` / business | **The Basement**: concrete floor, single bulb, crowd in shadow | Default fight club |
+| `pitch` / business | **The Basement**: concrete floor, single bulb, crowd in shadow | Default underground look |
 | `code` | **Server Room**: racks, blinking LEDs, cables as ropes | Fighters' punches throw code fragments |
 | `math` / logic | **Chalk Cage**: chain-link cage covered in equations | Hits leave chalk marks |
 | `writing` / creative | **The Alley**: rain, neon sign, brick walls | Words spray-painted on walls as they write |
 | `trivia` | **Bar Fight**: pool table, neon beer signs | Bottles fly on correct answers |
 | `design` / strategy | **Parking Garage**: concrete pillars, car headlights | Blueprints flutter |
 
-**Aesthetic: fight club.** Grainy film texture, muted greens and sodium-orange light, distressed typewriter-and-stencil type, splice-frame glitches on transitions, stamped red "WINNER" reveal. Fighters are 2D silhouettes or simple pixel sprites with a color accent per fighter. The UI copy leans into the theme ("First rule: back your fighter. Second rule: back your fighter.").
+**Aesthetic: underground fight.** Grainy film texture, muted greens and sodium-orange light, distressed typewriter-and-stencil type, splice-frame glitches on transitions, stamped red "WINNER" reveal. Fighters are 2D silhouettes or simple pixel sprites with a color accent per fighter. The UI copy leans into the theme ("First rule: back your fighter. Second rule: back your fighter.").
 
 ## 6. Leaderboard and history
 

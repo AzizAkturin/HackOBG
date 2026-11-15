@@ -4,6 +4,7 @@ import { TopBar } from './components/TopBar'
 import { useRound } from './game/useRound'
 import { FightPage } from './pages/FightPage'
 import { GaragePage } from './pages/GaragePage'
+import { MyProfileRoute, ProfilePage } from './pages/ProfilePage'
 import { StatsPage } from './pages/StatsPage'
 
 export default function App() {
@@ -18,12 +19,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <TopBar balance={round.balance} />
+      <TopBar />
 
       <Routes>
         <Route path="/" element={<FightPage round={round} onPlaced={setToast} />} />
         <Route path="/stats" element={<StatsPage round={round} />} />
         <Route path="/garage" element={<GaragePage />} />
+        <Route path="/me" element={<MyProfileRoute />} />
+        <Route path="/u/:id" element={<ProfilePage />} />
       </Routes>
 
       <footer className="border-t border-line py-5 text-center text-lg text-mute">

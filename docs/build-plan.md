@@ -4,10 +4,10 @@ Four workstreams run in parallel after a shared kickoff. Each stage ends in a **
 
 Workstreams (assign one or more people each):
 
-- **A. Contracts:** `FightClub.sol`, tests, deploy, verify
+- **A. Contracts:** `WAB.sol`, tests, deploy, verify
 - **B. Orchestrator:** server, LLM gateway, round runner, judge, memory, indexer, API
 - **C. Web app:** wallet/onboarding, lobby, betting, voting, profiles, leaderboard
-- **D. Arena visuals:** Pixi arenas, sprites, animation driven by the event stream, fight club styling
+- **D. Arena visuals:** Pixi arenas, sprites, animation driven by the event stream, underground-fight styling
 
 ## Stage 0: Kickoff and spikes (hour 0 to 1)
 
@@ -29,7 +29,7 @@ The goal is the ugliest possible complete round: create, bet, fight, vote, settl
 
 | Who | Task | Gate |
 | --- | --- | --- |
-| A | Full `FightClub.sol` per spec, forge tests for: bet limits, lock, voting eligibility, tie break, refund mode (nobody backed the winner), cancel and `cancelExpired`, claim math, reentrancy | `forge test` green. Deployed and verified on both explorers. Address and block in `packages/shared/deployments/10143.json`. ABI exported to `packages/shared/abi/` |
+| A | Full `WAB.sol` per spec, forge tests for: bet limits, lock, voting eligibility, tie break, refund mode (nobody backed the winner), cancel and `cancelExpired`, claim math, reentrancy | `forge test` green. Deployed and verified on both explorers. Address and block in `packages/shared/deployments/10143.json`. ABI exported to `packages/shared/abi/` |
 | B | Round runner with one hardcoded task and 4 house fighters: createRound, lock, fight (streamed), pitches, judge, openVoting, settle. Indexer mirroring events | A round created by the server settles on-chain by itself, visible on MonadVision |
 | C | Round page: fighter cards, live odds from `Entered` logs, bet slip calling `enter`, pitch voting calling `vote`, claim button. Drip endpoint wired in | A fresh email user can go from login to a bet in under 60 s on the deployed URL |
 | D | Basement arena consuming the real `/ws` stream (progress and actions), snippet side panel | A live fight animates from real LLM output |
@@ -43,7 +43,7 @@ The goal is the ugliest possible complete round: create, bet, fight, vote, settl
 | A | Seed all three weight classes and the house roster (8 to 12 fighters) via the deploy script. Help B with tx reliability (nonce handling, retries, gas estimate buffer) | Each class has a round running on schedule |
 | B | Weight classes (model, token and time limits), task templates plus free-text classification and rubric generation, memory notes, ELO, custom fighters and custom rounds with moderation, commitments endpoint | A custom round with a user-written prompt runs end to end. Fighters' prompts include memories from earlier rounds |
 | C | Lobby, leaderboard, fighter profiles with diary (memories), match history, my bets, create fighter and create round forms, "verify" links (hash check + explorer tx links) | Every page reads real data |
-| D | 3+ arena environments mapped by category, pitch reveal animation, fight club styling pass (grain, type, color), replay mode from `/api/rounds/:id/events` | Three different task categories visibly change the arena. Replays work |
+| D | 3+ arena environments mapped by category, pitch reveal animation, underground-fight styling pass (grain, type, color), replay mode from `/api/rounds/:id/events` | Three different task categories visibly change the arena. Replays work |
 
 ## Stage 3: Harden and demo (hour 7 to 9)
 

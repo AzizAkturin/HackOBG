@@ -136,3 +136,37 @@ CREATE TABLE IF NOT EXISTS indexer_state (
   key TEXT PRIMARY KEY,
   last_indexed_block INTEGER NOT NULL
 );
+
+-- Accounts: one per wallet, created by the explicit sign-up step after a verified SIWE signature.
+CREATE TABLE IF NOT EXISTS users (
+  address TEXT PRIMARY KEY,                       -- EIP-55 checksummed
+  username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  avatar TEXT NOT NULL,                           -- preset id, see packages/shared/src/profile.ts
+  age_confirmed_at INTEGER NOT NULL,              -- user confirmed 18+
+  terms_version TEXT NOT NULL,
+  terms_accepted_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  last_login_at INTEGER NOT NULL
+);
+
+-- Proof that a wallet without an account just signed in. Spent by POST /api/auth/signup.
+CREATE TABLE IF NOT EXISTS pending_signups (
+  token_hash TEXT PRIMARY KEY,
+  address TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
+-- Single-use SIWE nonces. Deleted when consumed or expired.
+CREATE TABLE IF NOT EXISTS auth_nonces (
+  nonce TEXT PRIMARY KEY,
+  expires_at INTEGER NOT NULL
+);
+
+-- Bearer sessions. Only the SHA-256 of the token is stored.
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash TEXT PRIMARY KEY,
+  address TEXT NOT NULL REFERENCES users(address),
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sessions_address ON sessions(address);

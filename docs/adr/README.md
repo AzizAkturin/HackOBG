@@ -15,7 +15,7 @@ Every on-chain or chain-adjacent decision has one record here. A record says wha
 | --- | --- | --- |
 | [0001](0001-monad-testnet-only.md) | Monad testnet only, no real value | Accepted |
 | [0002](0002-foundry-monad-toolchain.md) | Foundry via `foundry-monad`, verify on MonadVision and Monadscan | Accepted |
-| [0003](0003-single-contract.md) | One `FightClub` contract, not upgradeable | Accepted |
+| [0003](0003-single-contract.md) | One `WAB` contract, not upgradeable | Accepted |
 | [0004](0004-native-mon.md) | Bets in native MON, no ERC-20 | Accepted |
 | [0005](0005-parimutuel-pool.md) | Parimutuel pool with an entry fee (min bet) and rake | Accepted |
 | [0006](0006-round-lifecycle-and-deadlines.md) | Round state machine with timestamp deadlines and public cancel | Accepted |

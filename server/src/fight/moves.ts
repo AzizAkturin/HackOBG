@@ -1,4 +1,4 @@
-import type { FightEvent } from "@fightclub/shared";
+import type { FightEvent } from "@wab/shared";
 
 export const MOVE_THRESHOLDS = {
   tickMs: 250,

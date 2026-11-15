@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import type { EventEnvelope, FightEvent } from "@fightclub/shared";
+import type { EventEnvelope, FightEvent } from "@wab/shared";
 import { openDb } from "../db/index.ts";
 import { createRecorder, loadEvents } from "./recorder.ts";
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { FightEvent } from "@fightclub/shared";
+import type { FightEvent } from "@wab/shared";
 import { createMoveState, MOVE_THRESHOLDS, step, type MoveInput } from "./moves.ts";
 
 function play(inputs: MoveInput[], budget = 1000) {

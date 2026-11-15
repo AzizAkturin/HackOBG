@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it, mock } from "node:test";
-import type { FightEvent } from "@fightclub/shared";
+import type { FightEvent } from "@wab/shared";
 import type { Delta, RunFighterOptions, RunResult } from "../llm/gateway.ts";
 import type { ModelEntry, ModelRoute } from "../llm/models.ts";
 import { KO_PITCH, runFight } from "./run.ts";

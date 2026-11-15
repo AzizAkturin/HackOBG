@@ -13,7 +13,7 @@ Scaffold `contracts/` from `foundry-monad`. Tests in Solidity (forge test). Depl
 - **Remix:** no scripted, repeatable deploy.
 
 ## Consequences
-The ABI is exported from `contracts/out/FightClub.sol/FightClub.json` into `packages/shared/abi/` by a script, so the backend and frontend never hand-copy it.
+The ABI is exported from `contracts/out/WAB.sol/WAB.json` into `packages/shared/abi/` by a script, so the backend and frontend never hand-copy it.
 
 ## How to change
 Swap the toolchain under `contracts/` and keep the ABI export path. Nothing else depends on Foundry.

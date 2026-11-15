@@ -7,7 +7,7 @@ The frontend and backend technology choices are deliberately boring and easy to 
 ```
                          Monad Testnet (10143)
                         ┌──────────────────────┐
-         enter/vote/    │   FightClub.sol      │   create/openVoting/
+         enter/vote/    │   WAB.sol            │   create/openVoting/
          claim txs      │                      │   settle txs (operator key)
    ┌───────────────────▶│                      │◀────────────────────┐
    │   logs (WS, latest)└──────────┬───────────┘                     │
@@ -64,6 +64,10 @@ entries          (round_id, address, fighter_idx, amount, voted_label, claimed, 
 votes            (round_id, address, label, tx_hash)                                    -- mirrored from chain
 elo_history      (fighter_id, round_id, elo_before, elo_after)
 drips            (address, privy_user_id, ip, amount, tx_hash, created_at)
+users            (address, username, avatar, age_confirmed_at, terms_version, terms_accepted_at, created_at, last_login_at)
+pending_signups  (token_hash, address, expires_at)                       -- verified wallet waiting to finish sign-up, 15 min
+auth_nonces      (nonce, expires_at)                                      -- single-use SIWE nonces, 10 min
+sessions         (token_hash, address, created_at, expires_at)            -- bearer sessions, 30 days
 indexer_state    (key, last_indexed_block)
 ```
 
@@ -114,8 +118,14 @@ On-chain activity (bets, votes) does **not** go through this socket. The fronten
 | `POST /api/drip` | Fund a new user's wallet ([ADR-0009](adr/0009-onboarding-privy-and-drip.md)) |
 | `GET /api/leaderboard?class=` | ELO table |
 | `GET /api/users/:address` | Bettor profile, P&L, unclaimed rounds |
+| `GET /api/auth/nonce` | Single-use nonce for a Sign-In with Ethereum (EIP-4361) message |
+| `POST /api/auth/verify` | `{ message, signature }`. Verifies the signature. Existing account: `{ status: "signedIn", token, user }`. New wallet: `{ status: "needsSignup", signupToken, address }` (no account is created yet) |
+| `POST /api/auth/signup` | `{ signupToken, username, avatar, ageConfirmed, termsAccepted, termsVersion }`. Creates the account and returns `{ token, user }`. Requires 18+ and the current terms version |
+| `GET /api/auth/username?name=` | `{ available, reason? }` for the live check in the sign-up form |
+| `POST /api/auth/logout` | Ends the bearer session |
+| `GET /api/me` / `PATCH /api/me` | Current account; change `username` and/or `avatar` |
 
-Write endpoints authenticate with a SIWE-style signed message (wallet signature over a nonce), not passwords.
+Write endpoints authenticate with Sign-In with Ethereum: the wallet signs a message containing a server nonce, the site's domain and chain 10143, and the server returns a bearer token (`Authorization: Bearer …`). No passwords. The message is checked for domain (from `WEB_ORIGIN`) and chain, so a signature made for another site is rejected. Usernames are 3 to 20 of `A-Z a-z 0-9 _`, unique ignoring case, with a few reserved names. Avatars are preset ids. Both rules and the terms text live in `packages/shared/src/profile.ts`. Code: `server/src/auth/accounts.ts`, `server/src/routes/auth.ts`, `web/src/wallet/`.
 
 ## 6. Frontend screens
 
@@ -130,11 +140,11 @@ Write endpoints authenticate with a SIWE-style signed message (wallet signature 
 # server
 MONAD_RPC_HTTP, MONAD_RPC_WS          # dedicated provider endpoint
 OPERATOR_PK, OPERATOR_ADDRESS, DRIP_PK, DRIP_ADDRESS   # fresh hot wallets, see ADR-0016
-FIGHTCLUB_ADDRESS, DEPLOY_BLOCK       # also in packages/shared/deployments/10143.json
+WAB_ADDRESS, DEPLOY_BLOCK       # also in packages/shared/deployments/10143.json
 NVIDIA_API_KEY, NVIDIA_BASE_URL       # see docs/models.md
 OPENROUTER_API_KEY, OPENROUTER_BASE_URL
 PRIVY_APP_ID, PRIVY_APP_SECRET        # to verify Privy user ids on /api/drip
-DB_PATH=/data/fightclub.sqlite
+DB_PATH=/data/wab.sqlite
 
 # web
 VITE_PRIVY_APP_ID, VITE_API_URL, VITE_WS_URL, VITE_MONAD_RPC_WS

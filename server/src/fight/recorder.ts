@@ -1,4 +1,4 @@
-import type { EventEnvelope, FightEvent } from "@fightclub/shared";
+import type { EventEnvelope, FightEvent } from "@wab/shared";
 import type { Db } from "../db/index.ts";
 
 export function createRecorder(

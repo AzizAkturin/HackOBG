@@ -1,4 +1,4 @@
-# 0003: One FightClub contract, not upgradeable
+# 0003: One WAB contract, not upgradeable
 
 **Status:** Accepted
 
@@ -6,7 +6,7 @@
 We need weight classes, a fighter registry, rounds, bets, votes, settlement and payouts. Monad allows 128 KB contracts. We have 9 hours and one person on contracts.
 
 ## Decision
-A single non-upgradeable `FightClub.sol` holds everything. If we need changes, we redeploy and the backend re-registers fighters from its DB.
+A single non-upgradeable `WAB.sol` holds everything. If we need changes, we redeploy and the backend re-registers fighters from its DB.
 
 ## Alternatives considered
 - **Separate registry, market and voting contracts:** cleaner separation, but cross-contract calls, more deploy wiring and more ABIs, with no benefit at this scale.

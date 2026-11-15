@@ -1,4 +1,4 @@
-export const fightClubAbi = [
+export const wabAbi = [
   {
     "type": "constructor",
     "inputs": [],
@@ -376,7 +376,7 @@ export const fightClubAbi = [
       {
         "name": "",
         "type": "uint8",
-        "internalType": "enum FightClub.Phase"
+        "internalType": "enum WAB.Phase"
       }
     ],
     "stateMutability": "view"
@@ -485,7 +485,7 @@ export const fightClubAbi = [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct FightClub.Round",
+        "internalType": "struct WAB.Round",
         "components": [
           {
             "name": "classId",
@@ -495,7 +495,7 @@ export const fightClubAbi = [
           {
             "name": "phase",
             "type": "uint8",
-            "internalType": "enum FightClub.Phase"
+            "internalType": "enum WAB.Phase"
           },
           {
             "name": "fighterCount",
@@ -628,7 +628,7 @@ export const fightClubAbi = [
       {
         "name": "c",
         "type": "tuple",
-        "internalType": "struct FightClub.WeightClass",
+        "internalType": "struct WAB.WeightClass",
         "components": [
           {
             "name": "minBet",
@@ -1066,7 +1066,7 @@ export const fightClubAbi = [
         "name": "c",
         "type": "tuple",
         "indexed": false,
-        "internalType": "struct FightClub.WeightClass",
+        "internalType": "struct WAB.WeightClass",
         "components": [
           {
             "name": "minBet",

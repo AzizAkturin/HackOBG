@@ -29,14 +29,14 @@ function write(path: string, content: string) {
   console.log(`wrote ${path}`);
 }
 
-const artifactPath = join(contractsDir, "out/FightClub.sol/FightClub.json");
+const artifactPath = join(contractsDir, "out/WAB.sol/WAB.json");
 if (!existsSync(artifactPath)) {
   console.error(`missing ${artifactPath}, run pnpm contracts:build first`);
   process.exit(1);
 }
 const { abi } = JSON.parse(readFileSync(artifactPath, "utf8")) as Artifact;
-const abiSource = `export const fightClubAbi = ${JSON.stringify(abi, null, 2)} as const;\n`;
-write(join(sharedDir, "src/abi/fightClub.ts"), abiSource);
+const abiSource = `export const wabAbi = ${JSON.stringify(abi, null, 2)} as const;\n`;
+write(join(sharedDir, "src/abi/wab.ts"), abiSource);
 
 const runPath = join(args["broadcast-dir"], "Deploy.s.sol", args.chain, "run-latest.json");
 if (!existsSync(runPath)) {
@@ -44,14 +44,14 @@ if (!existsSync(runPath)) {
   process.exit(0);
 }
 const run = JSON.parse(readFileSync(runPath, "utf8")) as Broadcast;
-const create = run.transactions.find((t) => t.transactionType === "CREATE" && t.contractName === "FightClub");
+const create = run.transactions.find((t) => t.transactionType === "CREATE" && t.contractName === "WAB");
 const receipt = run.receipts.find((r) => r.transactionHash === create?.hash);
 if (!create?.contractAddress || !receipt) {
-  console.error(`${runPath} has no confirmed FightClub CREATE`);
+  console.error(`${runPath} has no confirmed WAB CREATE`);
   process.exit(1);
 }
 if (receipt.status !== "0x1") {
-  console.error(`FightClub deploy ${create.hash} reverted`);
+  console.error(`WAB deploy ${create.hash} reverted`);
   process.exit(1);
 }
 const deployment = {

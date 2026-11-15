@@ -1,4 +1,4 @@
-import type { FightEvent } from "@fightclub/shared";
+import type { FightEvent } from "@wab/shared";
 import {
   runFighter as gatewayRunFighter,
   type RunFighterOptions,
