@@ -168,3 +168,42 @@ describe("progress and snippets", () => {
     for (const text of snippets) assert.ok(!/secret|PITCH/.test(text), text);
   });
 });
+
+describe("status feed", () => {
+  const statuses = (log: ReturnType<typeof play>) => log.flatMap(({ event }) => (event.kind === "status" ? [event.text] : []));
+
+  it("says Thinking once per spell of reasoning and Writing once at the first content", () => {
+    const log = play([reasoning(100, "a"), reasoning(200, "b"), content(300, "hi"), content(400, "there"), reasoning(500, "c")]);
+    assert.deepEqual(statuses(log), ["Thinking", "Writing", "Thinking"]);
+  });
+
+  it("names a heading once its line is complete, even when it arrives in pieces", () => {
+    const log = play([content(100, "## The **Pro"), content(200, "blem**"), content(300, "\nbody\n")]);
+    assert.deepEqual(statuses(log), ["Writing", "Drafting: The Problem"]);
+  });
+
+  it("waits for the end of the heading line and trims long headings", () => {
+    assert.deepEqual(statuses(play([content(100, "## Half a head")])), ["Writing"]);
+    const long = "word ".repeat(30);
+    const [, drafting] = statuses(play([content(100, `# ${long}\n`)]));
+    assert.equal(drafting, `Drafting: ${long.trim().slice(0, MOVE_THRESHOLDS.statusMaxChars).trim()}`);
+  });
+
+  it("announces the pitch once and never puts pitch text in a status", () => {
+    const log = play([content(100, "## Plan\nsteps\n"), content(200, "## PITCH: SECRETWORDS\n"), content(300, "PITCH: SECRETWORDS more\n")]);
+    assert.deepEqual(statuses(log), ["Writing", "Drafting: Plan", "Writing the pitch"]);
+    assert.ok(!statuses(log).join().includes("SECRET"));
+  });
+
+  it("says Still thinking alongside each circle", () => {
+    const log = play([reasoning(100, "a"), tick(3000), tick(5000), tick(7200)]);
+    assert.deepEqual(statuses(log), ["Thinking", "Still thinking", "Still thinking"]);
+    assert.equal(actions(log).length, 2);
+  });
+
+  it("reports a retry and every finish, but only the first finish taunts", () => {
+    const log = play([{ type: "retry", tMs: 100 }, { type: "finished", tMs: 200, first: false }]);
+    assert.deepEqual(statuses(log), ["Retrying", "Finished"]);
+    assert.deepEqual(actions(log).map((a) => a.move), ["stagger"]);
+  });
+});

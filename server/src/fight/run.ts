@@ -1,6 +1,7 @@
 import type { FightEvent } from "@wab/shared";
 import {
   runFighter as gatewayRunFighter,
+  type KoReason,
   type RunFighterOptions,
   type RunResult,
 } from "../llm/gateway.ts";
@@ -9,6 +10,14 @@ import { buildMessages, lastWords, PITCH_MAX_WORDS, splitPitch } from "./prompt.
 import type { FightLimits, FightTask, FighterOutcome, FighterSpec } from "./types.ts";
 
 export const KO_PITCH = "I got knocked out before I could pitch.";
+
+const KO_STATUS: Record<KoReason, string> = {
+  timeout: "Out of time",
+  budget_exhausted: "Out of tokens",
+  http_error: "Knocked out",
+  empty: "No answer",
+  aborted: "Stopped",
+};
 
 export type RunFightArgs = {
   roundId: number;
@@ -67,6 +76,7 @@ export async function runFight(args: RunFightArgs): Promise<FighterOutcome[]> {
       return finish(lane, result.partialContent, partialTokens);
     }
     const finishedAtMs = elapsed();
+    emit({ kind: "status", fighter: lane.fighter.idx, text: KO_STATUS[result.reason] });
     emit({ kind: "ko", fighter: lane.fighter.idx, reason: result.reason });
     return {
       status: "ko",

@@ -81,6 +81,7 @@ type FightEvent =
   | { kind: "progress"; fighter: number; tokens: number; budget: number }      // throttled to ~4/s per fighter
   | { kind: "action"; fighter: number; move: Move; intensity: number }          // derived by the server
   | { kind: "snippet"; fighter: number; text: string }                          // live work preview for the side panel
+  | { kind: "status"; fighter: number; text: string }                           // one-line "what it's doing now", shown under the name for ~10 s
   | { kind: "ko"; fighter: number; reason: string }
   | { kind: "finished"; fighter: number; atMs: number }
   | { kind: "pitches"; pitches: { label: string; text: string; result: string }[] }  // anonymized
@@ -99,6 +100,8 @@ How the server turns LLM streams into moves (cosmetic, but tied to real progress
 | Retry or error | `stagger` |
 | Finished first / finished while others are still going | `taunt` |
 | Final reveal winner vs losers | `knockdown` on the losers |
+
+`status` events come from the same signals: `Thinking` on the first reasoning token of a spell, `Writing` at the first content, `Drafting: <heading>` once a heading line is complete, `Writing the pitch` at `PITCH:` (never the pitch text), `Still thinking` with each `circle`, `Retrying`, `Finished`, and a short reason on a KO. The frontend shows the newest three under the fighter's name and drops each after about 10 s.
 
 On-chain activity (bets, votes) does **not** go through this socket. The frontend reads it straight from Monad ([ADR-0010](adr/0010-chain-reads-and-indexing.md)), so the odds board is provably real.
 

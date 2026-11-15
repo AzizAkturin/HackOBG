@@ -4,21 +4,32 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { brands } from '../data/brands'
-import { mainEvent } from '../data/mock'
+import { firstName, mainEvent } from '../data/mock'
 import { Batch } from './StaticBatch'
 import { CORNER_SEATS, MAT_Y } from './director'
+import { ANIMATED, createScreen, drawScreen, type ScreenKind } from './deskScreens'
+import { CHAIR_H, COMMENTATORS, DESK_XS, DESK_Z, STAGE_Y } from './stadium'
 import { grimeTexture, holoRingTexture, noiseTexture, ringCanvasTexture, screenTexture, skirtTexture, whenFontsReady } from './textures'
 
 /** Half the distance between corner posts. */
 export const RING_HALF = 3.6
 const APRON = 0.55
 const STAGE_HALF = RING_HALF + 2.6
-const STAGE_Y = 0.45
 const ROPES = [0.42, 0.82, 1.22, 1.6]
+const ROPE_RED = new THREE.Color('#c4141c')
+const ROPE_WHITE = new THREE.Color('#e4e0d6')
+const ROPE_BLUE = new THREE.Color('#1550d8')
+// rope colors at each corner, matching CORNERS order: red, neutral, blue, neutral
+const CORNER_ROPE = [ROPE_RED, ROPE_WHITE, ROPE_BLUE, ROPE_WHITE]
+const ROPE_SAG = 0.05
 const POST_H = 1.85
 const LED = '#1d8ea6'
 
 type V3 = [number, number, number]
+
+const NEUTRAL_GLOW = new THREE.Color('#ffffff').multiplyScalar(1.6)
+const RED_CORNER ={ pad: '#d3121c', ring: '#ff1a0f', glow: new THREE.Color('#ff1a0f').multiplyScalar(2.2), light: 2.5 }
+const BLUE_CORNER = { pad: '#1048e6', ring: '#1a5cff', glow: new THREE.Color('#1a5cff').multiplyScalar(2.2), light: 2.5 }
 
 const CORNERS: [number, number][] = [
   [-1, 1],
@@ -33,6 +44,50 @@ function Led({ size, p }: { size: V3; p: V3 }) {
       <boxGeometry args={size} />
       <meshBasicMaterial color={LED} toneMapped={false} />
     </mesh>
+  )
+}
+
+/** Rope with a slight sag between posts and taped sleeves near each corner. */
+function Rope({ ax, az, bx, bz, y, from: c0, to: c1 }: { ax: number; az: number; bx: number; bz: number; y: number; from: THREE.Color; to: THREE.Color }) {
+  const { tapes, tapeRot, geo } = useMemo(() => {
+    const from = new THREE.Vector3(ax, y, az)
+    const to = new THREE.Vector3(bx, y, bz)
+    const steps = 16
+    const points = Array.from({ length: steps + 1 }, (_, i) => {
+      const t = i / steps
+      const p = from.clone().lerp(to, t)
+      p.y -= 4 * ROPE_SAG * t * (1 - t)
+      return p
+    })
+    const curve = new THREE.CatmullRomCurve3(points)
+    const len = curve.getLength()
+    const tapes = [0.35, len - 0.35].map((d) => curve.getPointAt(d / len))
+    const tapeRot: V3 = Math.abs(bx - ax) > 0.01 ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0]
+    const geo = new THREE.TubeGeometry(curve, 32, 0.045, 12, false)
+    const rings = 33
+    const per = geo.attributes.position.count / rings
+    const colors = new Float32Array(geo.attributes.position.count * 3)
+    const c = new THREE.Color()
+    for (let i = 0; i < rings; i++) {
+      c.copy(c0).lerp(c1, i / (rings - 1))
+      for (let j = 0; j < per; j++) c.toArray(colors, (i * per + j) * 3)
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    return { tapes, tapeRot, geo }
+  }, [ax, az, bx, bz, y, c0, c1])
+
+  return (
+    <group>
+      <mesh castShadow geometry={geo} userData={{ noBatch: true }}>
+        <meshStandardMaterial vertexColors roughness={0.85} metalness={0} />
+      </mesh>
+      {tapes.map((p, i) => (
+        <mesh key={i} position={p} rotation={tapeRot}>
+          <cylinderGeometry args={[0.052, 0.052, 0.22, 12]} />
+          <meshStandardMaterial color="#1b1b1d" roughness={0.9} />
+        </mesh>
+      ))}
+    </group>
   )
 }
 
@@ -118,7 +173,7 @@ function HoloFloor({ reduced }: { reduced: boolean }) {
 /** Floating hologram screen behind the ring, with a slow flicker. */
 function drawHolo() {
   const [red, blue] = mainEvent.fighters
-  return screenTexture(red.name, blue.name, brands[red.brand].ui, brands[blue.brand].ui)
+  return screenTexture(firstName(red.name), firstName(blue.name), brands[red.brand].ui, brands[blue.brand].ui)
 }
 
 function HoloScreen({ reduced }: { reduced: boolean }) {
@@ -134,7 +189,7 @@ function HoloScreen({ reduced }: { reduced: boolean }) {
     <group position={[0, MAT_Y + 3.6, -RING_HALF - 2.4]}>
       <mesh>
         <planeGeometry args={[6.4, 3.2]} />
-        <meshBasicMaterial ref={mat} map={tex} color="#7fe6ff" transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial ref={mat} map={tex} transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
       </mesh>
       {/* projector base */}
       <mesh position={[0, -2.6, 0]}>
@@ -146,6 +201,77 @@ function HoloScreen({ reduced }: { reduced: boolean }) {
         <meshBasicMaterial color="#3fe0ff" toneMapped={false} />
       </mesh>
     </group>
+  )
+}
+
+const DESK_SCREENS: ScreenKind[][] = [
+  ['red', 'blue'],
+  ['stream', 'cam'],
+  ['pool', 'task'],
+]
+
+function DeskScreen({ kind, reduced }: { kind: ScreenKind; reduced: boolean }) {
+  const screen = useMemo(() => createScreen(), [])
+  const clock = useRef(0)
+  const animated = ANIMATED.has(kind) && !reduced
+
+  useEffect(() => {
+    let mounted = true
+    const redraw = () => {
+      if (!mounted) return
+      drawScreen(kind, screen.ctx, clock.current)
+      screen.texture.needsUpdate = true
+    }
+    redraw()
+    whenFontsReady(redraw)
+    return () => {
+      mounted = false
+      screen.texture.dispose()
+    }
+  }, [kind, screen])
+
+  const last = useRef(0)
+  useFrame(({ clock: c }) => {
+    if (!animated || c.elapsedTime - last.current < 0.12) return
+    last.current = c.elapsedTime
+    clock.current = c.elapsedTime
+    drawScreen(kind, screen.ctx, c.elapsedTime)
+    screen.texture.needsUpdate = true
+  })
+
+  return (
+    <mesh position={[0, 0, 0.011]}>
+      <planeGeometry args={[0.7, 0.42]} />
+      <meshBasicMaterial map={screen.texture} toneMapped={false} />
+    </mesh>
+  )
+}
+
+/** Monitors on the commentary desks, showing broadcast graphics. */
+function DeskMonitors({ reduced }: { reduced: boolean }) {
+  return (
+    <>
+      {COMMENTATORS.map(([x, z]) => (
+        <pointLight key={x} position={[x, STAGE_Y + 2.4, z + 0.5]} color="#dbe8ff" intensity={2} distance={3.5} decay={2} />
+      ))}
+      {DESK_XS.map((x, d) =>
+        DESK_SCREENS[d].map((kind, m) => (
+          <group key={`${x}-${m}`} position={[x + (m === 0 ? -0.6 : 0.6), STAGE_Y + 0.8, DESK_Z - 0.1]}>
+            <mesh position={[0, 0.07, -0.04]}>
+              <boxGeometry args={[0.05, 0.14, 0.05]} />
+              <meshStandardMaterial color="#111" />
+            </mesh>
+            <group position={[0, 0.24, 0]} rotation={[-0.25, 0, 0]}>
+              <mesh castShadow>
+                <boxGeometry args={[0.74, 0.46, 0.02]} />
+                <meshStandardMaterial color="#0a0b0d" roughness={0.5} metalness={0.4} />
+              </mesh>
+              <DeskScreen kind={kind} reduced={reduced} />
+            </group>
+          </group>
+        )),
+      )}
+    </>
   )
 }
 
@@ -240,7 +366,8 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
 
       {/* corner posts and turnbuckle pads: red, neutral, blue, neutral */}
       {CORNERS.map(([sx, sz], k) => {
-        const pad = k === 0 ? '#9e2026' : k === 2 ? '#1f47a3' : '#b9b6ae'
+        const team = k === 0 ? RED_CORNER : k === 2 ? BLUE_CORNER : null
+        const pad = team ? team.pad : '#b9b6ae'
         return (
           <group key={k} position={[sx * RING_HALF, MAT_Y, sz * RING_HALF]}>
             <mesh position={[0, POST_H / 2, 0]} castShadow>
@@ -248,7 +375,13 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
               <meshStandardMaterial color="#9a9ea6" map={base.grime} metalness={0.9} roughness={0.38} />
             </mesh>
             <RoundedBox args={[0.3, 1.45, 0.3]} radius={0.08} position={[-sx * 0.08, 1.0, -sz * 0.08]} rotation={[0, Math.PI / 4, 0]} castShadow>
-              <meshStandardMaterial color={pad} map={base.grime} roughness={0.55} />
+              <meshStandardMaterial
+                color={pad}
+                map={base.grime}
+                roughness={0.55}
+                emissive={team ? team.ring : '#000000'}
+                emissiveIntensity={team ? 0.55 : 0}
+              />
             </RoundedBox>
             {[0.35, 1.0, 1.65].map((y) => (
               <mesh key={y} position={[-sx * 0.08, y, -sz * 0.08]} rotation={[0, Math.PI / 4, 0]}>
@@ -258,10 +391,11 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
             ))}
             {[0.15, POST_H - 0.05].map((y) => (
               <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                <torusGeometry args={[0.1, 0.014, 8, 32]} />
-                <meshBasicMaterial color={k === 0 ? '#ff3b30' : k === 2 ? '#3b7bff' : '#3fe0ff'} toneMapped={false} />
+                <torusGeometry args={[team ? 0.11 : 0.1, team ? 0.022 : 0.014, 8, 32]} />
+                <meshBasicMaterial color={team ? team.glow : NEUTRAL_GLOW} toneMapped={false} />
               </mesh>
             ))}
+            {team && <pointLight position={[-sx * 0.3, 1.0, -sz * 0.3]} color={team.ring} intensity={team.light} distance={3.2} decay={2} />}
             <mesh position={[0, POST_H + 0.03, 0]}>
               <sphereGeometry args={[0.09, 16, 12]} />
               <meshStandardMaterial color="#9a9ea6" metalness={1} roughness={0.35} />
@@ -270,36 +404,20 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
         )
       })}
 
-      {/* ropes, taped near the corners */}
       {ROPES.map((h, level) =>
         CORNERS.map(([sx, sz], k) => {
           const [nx, nz] = CORNERS[(k + 1) % 4]
-          const a = new THREE.Vector3(sx * RING_HALF, MAT_Y + h, sz * RING_HALF)
-          const b = new THREE.Vector3(nx * RING_HALF, MAT_Y + h, nz * RING_HALF)
-          const mid = a.clone().add(b).multiplyScalar(0.5)
-          const len = a.distanceTo(b)
-          const dir = b.clone().sub(a).normalize()
-          const horizontal = Math.abs(b.x - a.x) > 0.01
-          const rot: V3 = horizontal ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0]
           return (
-            <group key={`${level}-${k}`}>
-              <mesh position={mid} rotation={rot} castShadow>
-                <cylinderGeometry args={[0.045, 0.045, len, 12]} />
-                <meshStandardMaterial
-                  color="#20252d"
-                  metalness={0.7}
-                  roughness={0.3}
-                  emissive={level === 3 ? '#e6f4ff' : '#2ad4ff'}
-                  emissiveIntensity={level === 3 ? 0.5 : 0.35}
-                />
-              </mesh>
-              {[0.35, len - 0.35].map((d) => (
-                <mesh key={d} position={a.clone().addScaledVector(dir, d)} rotation={rot}>
-                  <cylinderGeometry args={[0.05, 0.05, 0.22, 12]} />
-                  <meshStandardMaterial color="#1b1b1d" roughness={0.9} />
-                </mesh>
-              ))}
-            </group>
+            <Rope
+              key={`${level}-${k}`}
+              ax={sx * RING_HALF}
+              az={sz * RING_HALF}
+              bx={nx * RING_HALF}
+              bz={nz * RING_HALF}
+              y={MAT_Y + h}
+              from={CORNER_ROPE[k]}
+              to={CORNER_ROPE[(k + 1) % 4]}
+            />
           )
         }),
       )}
@@ -318,6 +436,7 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
       })}
       </Batch>
 
+      <DeskMonitors reduced={reduced} />
       <HoloFloor reduced={reduced} />
       <HoloScreen reduced={reduced} />
       <PopUpStool x={CORNER_SEATS[0][0]} z={CORNER_SEATS[0][1]} color="#ff3b30" up={resting} reduced={reduced} />
@@ -339,27 +458,27 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
         </group>
       ))}
 
-      {/* ringside tables with monitors and laptops */}
-      {[-2.6, 0, 2.6].map((x) => (
-        <group key={x} position={[x, STAGE_Y, STAGE_HALF - 0.9]}>
+      {COMMENTATORS.map(([x, z]) => (
+        <group key={x} position={[x, STAGE_Y, z]}>
+          <mesh position={[0, CHAIR_H / 2, 0]} castShadow>
+            <cylinderGeometry args={[0.04, 0.04, CHAIR_H, 8]} />
+            <meshStandardMaterial color="#1a1c20" metalness={0.6} roughness={0.5} />
+          </mesh>
+          <mesh position={[0, CHAIR_H, 0]} castShadow>
+            <cylinderGeometry args={[0.28, 0.28, 0.06, 20]} />
+            <meshStandardMaterial color="#111317" roughness={0.8} />
+          </mesh>
+        </group>
+      ))}
+      {/* ringside commentary desks */}
+      {DESK_XS.map((x) => (
+        <group key={x} position={[x, STAGE_Y, DESK_Z]}>
           <mesh position={[0, 0.4, 0]} castShadow>
             <boxGeometry args={[1.9, 0.8, 0.7]} />
             <meshStandardMaterial color="#0c0f14" map={base.grime} metalness={0.3} roughness={0.7} />
           </mesh>
           <Led size={[1.9, 0.02, 0.02]} p={[0, 0.78, 0.36]} />
-          {[-0.45, 0.45].map((mx) => (
-            <group key={mx} position={[mx, 0.8, -0.1]}>
-              <mesh position={[0, 0.22, 0]} rotation={[-0.25, 0, 0]}>
-                <planeGeometry args={[0.7, 0.42]} />
-                <meshBasicMaterial color={mx < 0 ? '#1a4a8f' : '#156f85'} toneMapped={false} />
-              </mesh>
-              <mesh position={[0, 0.06, 0.05]}>
-                <boxGeometry args={[0.06, 0.12, 0.06]} />
-                <meshStandardMaterial color="#111" />
-              </mesh>
-            </group>
-          ))}
-          <mesh position={[0, 0.81, 0.18]} rotation={[-0.1, 0, 0]}>
+          <mesh position={[0, 0.81, 0.12]} rotation={[-0.1, 0, 0]}>
             <boxGeometry args={[0.36, 0.015, 0.24]} />
             <meshStandardMaterial color="#2c2e33" metalness={0.8} roughness={0.4} />
           </mesh>

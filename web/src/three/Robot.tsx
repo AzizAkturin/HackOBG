@@ -4,14 +4,15 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { Brand } from '../data/brands'
 import { MAT_Y, ROBOT_SCALE, type FightDirector } from './director'
-import { blendPose, GUARD, type Pose } from './moves'
+import { addPose, blendPose, clampPose, GUARD, type Pose } from './moves'
 import { ARM_UPPER, TORSO_Y, type Chassis, type Finish } from './robots/chassis'
 import { firmwareMaterial, type Firmware } from './robots/firmware'
+import { hipYawFor, legAngles, wheelHeading } from './gait'
 import { mergeParts, type MatKey, type Merged } from './robots/parts'
 import { applyWear, markHits, type WearUniforms } from './robots/wear'
 import { brushedTextures, chestTexture, dotTexture, grimeTexture, hazardTexture, noiseTexture, panelNormalTexture, wearMaskTexture } from './textures'
 
-export type RobotDriver = Pick<FightDirector, 'base' | 'speed' | 'pose' | 'hurt' | 'damage'>
+export type RobotDriver = Pick<FightDirector, 'base' | 'speed' | 'frame' | 'hurt' | 'damage'> & Partial<Pick<FightDirector, 'now' | 'dt' | 'offsets' | 'motion'>>
 
 export interface RobotProps {
   index: number
@@ -180,6 +181,8 @@ export function Robot({ index, brand, chassis, firmware, number, director, selec
   const haloMap = useMemo(() => dotTexture(), [])
   const pose = useRef<Pose>({ ...GUARD })
   const stride = useRef(0)
+  const roll = useRef(0)
+  const wheelYaw = useRef<THREE.Group>(null)
 
   const { rig } = chassis
   const geo = geometryFor(chassis)
@@ -227,40 +230,48 @@ export function Robot({ index, brand, chassis, firmware, number, director, selec
     r.position.set(base.x, MAT_Y, base.z)
     r.rotation.y = base.rotY
 
-    // ease toward the director's pose so moves blend into each other
-    const target = director.pose(index, t)
-    pose.current = blendPose(pose.current, target, 1 - Math.exp(-(reduced ? 6 : 16) * delta))
-    const p = pose.current
-    const bob = reduced ? 0 : Math.sin(t * 3.2 + index * 1.7) * 0.025
-    const sway = reduced ? 0 : Math.sin(t * 3.2 + index) * 0.05
+    const ft = director.now ?? t
+    const fdt = director.dt ?? delta
+    const { pose: target, follow } = director.frame(index, ft)
+    const k = reduced ? Math.min(follow, 6) : follow
+    pose.current = blendPose(pose.current, target, k === Infinity ? 1 : 1 - Math.exp(-k * fdt))
+    // springs are added after the follow filter so their snap is not smoothed away
+    const off = director.offsets?.(index)
+    const p = clampPose(off ? addPose(pose.current, off) : { ...pose.current })
+    const bob = reduced ? 0 : Math.sin(ft * 3.2 + index * 1.7) * 0.025
+    const sway = reduced ? 0 : Math.sin(ft * 3.2 + index) * 0.05
 
     const drop = Math.max(0, p.drop + bob)
-    if (body.current) {
-      body.current.position.set(p.side, 0, p.fwd)
-      body.current.rotation.x = p.fall
-    }
+    if (body.current) body.current.rotation.x = p.fall
+    const hipYaw = hipYawFor(p.yaw, GUARD.yaw)
+    const weight = THREE.MathUtils.clamp(p.fwd * 6, -1, 1)
+    upper.current?.position.set(p.side, upper.current.position.y, p.fwd)
+    upper.current?.rotation.set(rig.wheel ? 0.15 * weight : 0, hipYaw, 0)
     const speed = director.speed[index]
+    if (!director.motion) stride.current += speed * fdt * 3.2
+    const motion = director.motion?.(index) ?? { vf: speed, vs: 0, turn: 0, phase: stride.current }
     if (rig.wheel) {
       if (upper.current) upper.current.position.y = rig.hip - drop * 0.4
-      stride.current += (speed * delta) / (rig.wheel * ROBOT_SCALE * rig.scale)
-      wheel.current?.rotation.set(stride.current, 0, 0)
+      const { yaw, dir } = wheelHeading(motion)
+      roll.current += (dir * speed * fdt) / (rig.wheel * ROBOT_SCALE * rig.scale)
+      if (wheelYaw.current) wheelYaw.current.rotation.y = THREE.MathUtils.damp(wheelYaw.current.rotation.y, yaw, 10, fdt)
+      wheel.current?.rotation.set(roll.current, 0, 0)
     } else {
       if (upper.current) upper.current.position.y = rig.hip - drop
-      // keep feet planted: thigh forward, shin back, foot flat
-      const k = Math.acos(THREE.MathUtils.clamp(1 - drop / rig.hip, -1, 1))
-      stride.current += speed * delta * 3.2
-      const amount = Math.min(1, speed / 1.5) * 0.45
-      for (const leg of [0, 1]) {
-        const swing = Math.sin(stride.current + leg * Math.PI) * amount
-        const lift = Math.max(0, -swing) * 1.4
-        thighs.current[leg]?.position.setY(rig.hip - drop)
-        thighs.current[leg]?.rotation.set(-k + swing, 0, 0)
-        knees.current[leg]?.rotation.set(2 * k + lift, 0, 0)
-        feet.current[leg]?.rotation.set(-k - swing - lift, 0, 0)
-      }
+      // planted legs only make sense standing; on the canvas the old fold is enough
+      const planted = Math.abs(p.fall) < 0.05
+      const legs = legAngles(motion, rig, { drop, fwd: planted ? p.fwd : 0, side: planted ? p.side : 0, hipYaw: planted ? hipYaw : 0, weight: planted ? weight : 0 })
+      legs.forEach((g, leg) => {
+        // the rear leg sits under a mirror, which flips y and z rotations below the thigh
+        const m = leg === 0 ? 1 : -1
+        thighs.current[leg]?.position.set(g.x, g.y, g.z)
+        thighs.current[leg]?.rotation.set(g.thighX, g.thighY, g.thighZ, 'YZX')
+        knees.current[leg]?.rotation.set(g.knee, 0, 0)
+        feet.current[leg]?.rotation.set(g.foot, g.footY * m, g.footZ * m)
+      })
     }
-    torso.current?.rotation.set(p.pitch, p.yaw, p.roll)
-    head.current?.rotation.set(p.headPitch, p.headYaw - p.yaw * 0.6, 0)
+    torso.current?.rotation.set(p.pitch, p.yaw - hipYaw, p.roll)
+    head.current?.rotation.set(p.headPitch, p.headYaw - p.yaw * 0.6, off?.headRoll ?? 0)
 
     const arms: [V3, number][] = [
       [p.lead, p.leadElbow],
@@ -334,8 +345,10 @@ export function Robot({ index, brand, chassis, firmware, number, director, selec
       <group scale={ROBOT_SCALE * rig.scale}>
         <group ref={body}>
           {rig.wheel ? (
-            <group ref={wheel} position={[0, rig.wheel, 0]}>
-              <Slot geo={geo.wheel} mats={mats} />
+            <group ref={wheelYaw} position={[0, rig.wheel, 0]}>
+              <group ref={wheel}>
+                <Slot geo={geo.wheel} mats={mats} />
+              </group>
             </group>
           ) : (
             <>

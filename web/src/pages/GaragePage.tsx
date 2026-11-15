@@ -5,7 +5,7 @@ import { RobotBadge } from '../components/RobotBadge'
 import { brands, type BrandKey } from '../data/brands'
 import type { WeightClass } from '../data/mock'
 import { MAT_Y } from '../three/director'
-import { GUARD, MOVES, samplePose, type MoveName, type Pose } from '../three/moves'
+import { GUARD, instantiate, sampleInstance, type MoveInstance, type MoveName, type Pose } from '../three/moves'
 import { Robot, type RobotDriver } from '../three/Robot'
 import { chassis } from '../three/robots/chassis'
 import { firmware } from '../three/robots/firmware'
@@ -21,15 +21,18 @@ class Showcase implements RobotDriver {
   hurt = lineup.map(() => 0)
   damage = lineup.map(() => 0)
 
-  pose(i: number, t: number): Pose {
+  private throws = new Map<MoveName, MoveInstance>()
+
+  frame(i: number, t: number): { pose: Pose; follow: number } {
     const slot = 2.2
     const local = t + i * 0.37
     const move = COMBO[Math.floor(local / slot) % COMBO.length]
-    const def = MOVES[move]
-    const u = (local % slot) / def.dur
+    let inst = this.throws.get(move)
+    if (!inst) this.throws.set(move, (inst = instantiate(move, 0, GUARD)))
+    const s = local % slot
     // fake a hit on the block so the firmware flash is visible here
-    this.hurt[i] = move === 'block' ? Math.max(0, 1 - Math.abs(u - 0.4) * 4) : 0
-    return u < 1 ? samplePose(def, u) : GUARD
+    this.hurt[i] = move === 'block' ? Math.max(0, 1 - Math.abs(s / inst.dur - 0.4) * 4) : 0
+    return s < inst.dur ? sampleInstance(inst, s) : { pose: GUARD, follow: 8 }
   }
 }
 

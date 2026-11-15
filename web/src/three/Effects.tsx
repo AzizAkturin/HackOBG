@@ -9,7 +9,7 @@ import { dotTexture } from './textures'
 
 /** Advances the director. Mount it first so robots read fresh state. */
 export function DirectorTick({ director, phase }: { director: FightDirector; phase: Phase }) {
-  useFrame(({ clock }, delta) => director.update(clock.elapsedTime, Math.min(delta, 0.05), phase))
+  useFrame((_, delta) => director.tick(delta, phase))
   return null
 }
 
@@ -123,25 +123,45 @@ export function CameraRig({ director, phase, reduced }: { director: FightDirecto
   const camera = useThree((s) => s.camera)
   const look = useRef(new THREE.Vector3(0, 1.8, 0))
   const pos = useRef(new THREE.Vector3(0, 12, 17))
+  const axisAz = useRef(0)
 
   useFrame(({ clock }, delta) => {
     const t = clock.elapsedTime
     const dt = Math.min(delta, 0.05)
-    const az = reduced ? 0 : Math.sin(t * 0.08) * 0.28
+    const [a, b] = director.base
+    const drift = reduced ? 0 : Math.sin(t * 0.08) * 0.28
+    // during the fight, swing round so the fighters stay side-on instead of lined up along the lens
+    if (locked) {
+      let nx = -(b.z - a.z)
+      let nz = b.x - a.x
+      if (nz < 0) [nx, nz] = [-nx, -nz]
+      const side = THREE.MathUtils.clamp(Math.atan2(nx, nz), -0.7, 0.7)
+      if (Math.abs(side - axisAz.current) > 0.15) axisAz.current = THREE.MathUtils.damp(axisAz.current, side, 0.6, dt)
+    } else axisAz.current = THREE.MathUtils.damp(axisAz.current, 0, 0.6, dt)
+    const az = reduced ? 0 : axisAz.current * 0.85 + drift * (locked ? 0.4 : 1)
+    const sep = Math.hypot(b.x - a.x, b.z - a.z)
     // high aerial over the arena before the bell, ringside once it starts
-    const radius = locked ? 10 : phase === 'rest' ? 13 : 16.5
+    const radius = locked ? 10 + THREE.MathUtils.clamp(sep - 2, 0, 1.5) : phase === 'rest' ? 13 : 16.5
     const height = locked ? 5.6 : phase === 'rest' ? 7.5 : 11.5
-    const target = new THREE.Vector3(Math.sin(az) * radius, height, Math.cos(az) * radius)
+    const centre = locked ? 0.4 : 0
+    const target = new THREE.Vector3(Math.sin(az) * radius + ((a.x + b.x) / 2) * centre, height, Math.cos(az) * radius + ((a.z + b.z) / 2) * centre)
     pos.current.lerp(target, 1 - Math.exp(-1.6 * dt))
 
-    const mid = new THREE.Vector3((director.base[0].x + director.base[1].x) / 2, locked ? 3.1 : 1.8, (director.base[0].z + director.base[1].z) / 2)
+    const mid = new THREE.Vector3((a.x + b.x) / 2, locked ? 3.1 : 1.8, (a.z + b.z) / 2)
+    const punch = reduced ? 0 : director.punch
+    mid.lerp(director.focus, punch * 0.5)
     look.current.lerp(mid, 1 - Math.exp(-3 * dt))
 
+    // shake runs along the punch direction plus smooth noise, so it reads the same at any frame rate
     const shake = reduced ? 0 : director.shake * 0.12
+    const along = Math.sin(t * 2 * Math.PI * 30) * shake * 0.6
+    const nx = (Math.sin(t * 37.1) + Math.sin(t * 61.7 + 1.3)) * 0.25 * shake
+    const ny = (Math.sin(t * 43.3 + 2.1) + Math.sin(t * 71.9)) * 0.25 * shake
+    const toLook = new THREE.Vector3().subVectors(look.current, pos.current).normalize()
     camera.position.set(
-      pos.current.x + (Math.random() - 0.5) * shake,
-      pos.current.y + (Math.random() - 0.5) * shake,
-      pos.current.z,
+      pos.current.x + director.kickDir.x * along + nx + toLook.x * punch * 1.4,
+      pos.current.y + ny + toLook.y * punch * 1.4,
+      pos.current.z + director.kickDir.z * along + toLook.z * punch * 1.4,
     )
     camera.lookAt(look.current)
   })

@@ -17,6 +17,7 @@ export const MOVE_THRESHOLDS = {
   circleMaxGapMs: 10000,
   pitchIntensity: 1,
   headingIntensity: 0.8,
+  statusMaxChars: 40,
 } as const;
 
 const T = MOVE_THRESHOLDS;
@@ -41,6 +42,8 @@ export type MoveState = {
   burstStreak: number;
   line: string;
   lineFired: boolean;
+  headingOpen: boolean;
+  thinking: boolean;
   pitching: boolean;
   tail: string;
   lastProgressMs: number | null;
@@ -67,6 +70,8 @@ export function createMoveState(init: { fighter: number; budget: number; startMs
     burstStreak: 0,
     line: "",
     lineFired: false,
+    headingOpen: false,
+    thinking: false,
     pitching: false,
     tail: "",
     lastProgressMs: null,
@@ -83,11 +88,19 @@ const HEADING_LINE = /^\s*#{1,6}\s+\S/;
 
 type Milestone = { intensity: number; pitch: boolean };
 
-function scanLines(s: MoveState, text: string): Milestone | null {
+const status = (fighter: number, text: string): FightEvent => ({ kind: "status", fighter, text });
+
+const headingText = (line: string) =>
+  line.replace(/^\s*#{1,6}\s*/, "").replace(/[*_`]/g, "").trim().slice(0, T.statusMaxChars).trimEnd();
+
+function scanLines(s: MoveState, text: string): { milestone: Milestone | null; headings: string[] } {
   let found: Milestone | null = null;
+  const headings: string[] = [];
   const parts = text.split("\n");
   parts.forEach((part, i) => {
     if (i > 0) {
+      if (s.headingOpen) headings.push(headingText(s.line));
+      s.headingOpen = false;
       s.line = "";
       s.lineFired = false;
     }
@@ -96,11 +109,12 @@ function scanLines(s: MoveState, text: string): Milestone | null {
     const pitch = PITCH_LINE.test(s.line);
     if (pitch || HEADING_LINE.test(s.line)) {
       s.lineFired = true;
+      s.headingOpen = !pitch;
       const hit = { intensity: pitch ? T.pitchIntensity : T.headingIntensity, pitch };
       if (!found || hit.pitch || !found.pitch) found = hit;
     }
   });
-  return found;
+  return { milestone: found, headings: headings.filter(Boolean) };
 }
 
 function checkGap(s: MoveState, tMs: number, events: FightEvent[]) {
@@ -109,6 +123,7 @@ function checkGap(s: MoveState, tMs: number, events: FightEvent[]) {
   const gap = silent >= T.silentGapMs ? silent : noContent >= T.noContentGapMs ? noContent : 0;
   if (gap === 0) return;
   if (s.lastCircleMs !== null && tMs - s.lastCircleMs < T.circleRepeatMs) return;
+  events.push(status(s.fighter, "Still thinking"));
   events.push({ kind: "action", fighter: s.fighter, move: "circle", intensity: clamp01(gap / T.circleMaxGapMs) });
   s.lastCircleMs = tMs;
 }
@@ -154,20 +169,26 @@ function onDelta(state: MoveState, input: Extract<MoveInput, { type: "delta" }>)
   s.lastActivityMs = tMs;
 
   if (input.kind === "reasoning") {
+    if (!s.thinking) events.push(status(s.fighter, "Thinking"));
+    s.thinking = true;
     s.reasoningChars += text.length;
     flush(s, tMs, events);
     return { state: s, events };
   }
 
+  s.thinking = false;
   if (s.firstContentMs === null) {
     s.firstContentMs = tMs;
     s.windowStartMs = tMs;
+    events.push(status(s.fighter, "Writing"));
   }
   s.lastContentMs = tMs;
   s.lastCircleMs = null;
   s.contentChars += text.length;
 
-  const milestone = scanLines(s, text);
+  const { milestone, headings } = scanLines(s, text);
+  for (const h of headings) events.push(status(s.fighter, `Drafting: ${h}`));
+  if (milestone?.pitch && !s.pitching) events.push(status(s.fighter, "Writing the pitch"));
   if (milestone?.pitch) s.pitching = true;
   if (!s.pitching) s.tail = (s.tail + text).slice(-T.snippetChars);
 
@@ -195,12 +216,15 @@ export function step(state: MoveState, input: MoveInput): { state: MoveState; ev
     case "retry":
       return {
         state: { ...state, lastActivityMs: input.tMs },
-        events: [{ kind: "action", fighter: state.fighter, move: "stagger", intensity: 1 }],
+        events: [status(state.fighter, "Retrying"), { kind: "action", fighter: state.fighter, move: "stagger", intensity: 1 }],
       };
     case "finished":
       return {
         state,
-        events: input.first ? [{ kind: "action", fighter: state.fighter, move: "taunt", intensity: 1 }] : [],
+        events: [
+          status(state.fighter, "Finished"),
+          ...(input.first ? [{ kind: "action" as const, fighter: state.fighter, move: "taunt" as const, intensity: 1 }] : []),
+        ],
       };
   }
 }

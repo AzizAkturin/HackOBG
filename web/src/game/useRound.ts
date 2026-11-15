@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { crowdAmounts, mainEvent, RAKE, randomAddress } from '../data/mock'
 
 export interface FeedItem {
@@ -53,6 +53,7 @@ export function useRound() {
   const [feed, setFeed] = useState<FeedItem[]>([])
   const [myBets, setMyBets] = useState<MyBet[]>([])
   const [secondsLeft, setSecondsLeft] = useState(mainEvent.locksInSec)
+  const clock = useRef(mainEvent.locksInSec)
   const [balance, setBalance] = useState(1)
   /** labelToFighter[label] is the fighter behind "Response A", "Response B", ... */
   const [labelToFighter, setLabelToFighter] = useState(() => shuffled(n))
@@ -81,9 +82,8 @@ export function useRound() {
   }, [])
 
   useEffect(() => {
-    let s = mainEvent.locksInSec
     const id = setInterval(() => {
-      s = s > -(ROUND_END - 1) ? s - 1 : mainEvent.locksInSec
+      const s = (clock.current = clock.current > -(ROUND_END - 1) ? clock.current - 1 : mainEvent.locksInSec)
       setSecondsLeft(s)
       if (s !== mainEvent.locksInSec) return
       setPools(mainEvent.fighters.map((f) => f.pool))
@@ -147,6 +147,12 @@ export function useRound() {
     return true
   }
 
+  const skipBell = () => {
+    if (locked) return
+    clock.current = 0
+    setSecondsLeft(0)
+  }
+
   const castVote = (label: number) => {
     if (phase !== 'voting' || myVote !== null) return false
     setMyVote(label)
@@ -172,6 +178,7 @@ export function useRound() {
     myVote,
     voteSecondsLeft,
     castVote,
+    skipBell,
     result,
   }
 }

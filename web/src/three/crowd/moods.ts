@@ -155,3 +155,49 @@ export const APPLAUSE: Reaction = {
   theirs: [[Mood.Cheer, 40], [Mood.Hyped, 25], [Mood.Laugh, 15], [Mood.Bored, 20]],
   neutral: [[Mood.Cheer, 40], [Mood.Hyped, 25], [Mood.Laugh, 15], [Mood.Bored, 20]],
 }
+
+const BIG: Record<CrowdKind, Weighted> = {
+  hit: [[Mood.Scream, 40], [Mood.Shocked, 30], [Mood.Hyped, 30]],
+  knockdown: [[Mood.Horrified, 40], [Mood.Scream, 40], [Mood.Shocked, 20]],
+  block: [[Mood.Shocked, 50], [Mood.Hyped, 30], [Mood.Worried, 20]],
+  slip: [[Mood.Shocked, 45], [Mood.Laugh, 30], [Mood.Hyped, 25]],
+  duck: [[Mood.Shocked, 45], [Mood.Laugh, 30], [Mood.Hyped, 25]],
+  taunt: [[Mood.Laugh, 50], [Mood.Shocked, 30], [Mood.Hyped, 20]],
+}
+
+/** Commentators never sit out and hold every reaction longer than the crowd. */
+function exaggerate(r: Reaction, table: Weighted): Reaction {
+  return { odds: 1, hold: [r.hold[0] * 1.5, r.hold[1] * 1.5], mine: table, theirs: table, neutral: table }
+}
+
+export const HOST_REACTIONS = Object.fromEntries(
+  (Object.keys(REACTIONS) as CrowdKind[]).map((k) => [k, exaggerate(REACTIONS[k], BIG[k])]),
+) as Record<CrowdKind, Reaction>
+export const HOST_ROAR = exaggerate(ROAR, [[Mood.Scream, 60], [Mood.Hyped, 40]])
+export const HOST_APPLAUSE = exaggerate(APPLAUSE, [[Mood.Hyped, 50], [Mood.Cheer, 30], [Mood.Laugh, 20]])
+
+export const HOST_IDLE: Weighted = [
+  [Mood.Hyped, 25],
+  [Mood.Shocked, 20],
+  [Mood.Cheer, 15],
+  [Mood.Worried, 15],
+  [Mood.Angry, 10],
+  [Mood.Scream, 10],
+  [Mood.Laugh, 5],
+]
+
+export const HOST_IDLE_CALM: Weighted = [
+  [Mood.Neutral, 40],
+  [Mood.Smirk, 20],
+  [Mood.Laugh, 15],
+  [Mood.Cheer, 10],
+  [Mood.Worried, 10],
+  [Mood.Shocked, 5],
+]
+
+/** Face shown on the rare moment a commentator turns to the camera. */
+export const HOST_LOOK: Weighted = [
+  [Mood.Smirk, 40],
+  [Mood.Laugh, 35],
+  [Mood.Cheer, 25],
+]
