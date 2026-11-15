@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { classColor, formatClock, mainEvent, otherFights, type FightStatus, type WeightClass } from '../data/mock'
+import { classColor, formatClock, mainEvent, otherFights, roundLabel, type FightStatus, type WeightClass } from '../data/mock'
 import { Panel } from './Panel'
 
 interface Row {
@@ -41,13 +41,13 @@ export function FightCard({ secondsLeft, locked }: { secondsLeft: number; locked
 
   return (
     <Panel title="Fight card" titleId="card-title" aside={<span className="label shrink-0 text-[11px] text-mute">{rows.length} live</span>}>
-      <ul className="divide-y-2 divide-dashed divide-line">
+      <ul className="divide-y divide-line">
         {rows.map((r) => {
           const st = statusText[r.status]
           return (
             <li key={r.roundId} className={`flex items-center gap-3 py-3 ${r.current ? '-mx-2 bg-well px-2' : ''}`}>
               <span className="w-14 shrink-0 font-display text-xl tracking-widest" style={{ color: classColor[r.weightClass] }}>
-                R{String(r.roundId).padStart(3, '0')}
+                {roundLabel(r.roundId)}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-lg leading-tight">{r.task}</p>

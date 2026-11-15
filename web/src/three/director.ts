@@ -21,6 +21,9 @@ const WALK_SPEED = 1.7
 
 export type Reaction = 'block' | 'slip' | 'duck' | 'hit' | 'knockdown'
 
+/** What the crowd can react to. */
+export type CrowdKind = Reaction | 'taunt'
+
 export interface FightEvent {
   attacker: number
   move: MoveName
@@ -58,7 +61,12 @@ export class FightDirector {
     { x: IDLE_DIST, z: 0, rotY: 0 },
   ]
   shake = 0
+  /** per robot, 1 right after taking a hit, decaying to 0 */
+  hurt = [0, 0]
   bursts: Burst[] = []
+  /** Latest thing worth reacting to; `who` is the fighter who acted (attacker or taunter). */
+  crowd: { seq: number; kind: CrowdKind; who: number } = { seq: 0, kind: 'hit', who: 0 }
+  phase: Phase = 'betting'
 
   private actions: (Action | null)[] = [null, null]
   private queue: { at: number; fn: () => void }[] = []
@@ -66,7 +74,6 @@ export class FightDirector {
   private dist = IDLE_DIST
   private orbit = 0
   private bias = 0.45
-  private phase: Phase = 'betting'
   /** Ground speed per robot, for the walk cycle. */
   speed = [0, 0]
   private seated = [false, false]
@@ -80,6 +87,11 @@ export class FightDirector {
 
   private play(i: number, move: MoveName, at: number) {
     this.actions[i] = { move, start: at }
+    if (move === 'taunt') this.cue(i, 'taunt')
+  }
+
+  private cue(who: number, kind: CrowdKind) {
+    this.crowd = { seq: this.crowd.seq + 1, kind, who }
   }
 
   private schedule(at: number, fn: () => void) {
@@ -162,6 +174,7 @@ export class FightDirector {
     }
 
     this.shake *= Math.exp(-5 * dt)
+    for (const i of [0, 1]) this.hurt[i] *= Math.exp(-6 * dt)
   }
 
   private shadowbox(t: number) {
@@ -244,7 +257,9 @@ export class FightDirector {
     } else if (reaction === 'hit' || reaction === 'knockdown') {
       this.bursts.push({ pos, dir, strength: reaction === 'knockdown' ? 1.6 : 1 })
       this.shake = Math.min(1.2, this.shake + (reaction === 'knockdown' ? 1 : 0.45))
+      this.hurt[1 - attacker] = 1
     }
+    this.cue(attacker, reaction)
     this.emit({ attacker, move, reaction })
   }
 }

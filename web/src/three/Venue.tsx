@@ -1,113 +1,17 @@
 // Stadium around the ring: tiered seating packed with a crowd, phone flashes,
 // a square lighting rig with visible beams, and dust in the air.
 import { Sparkles, SpotLight } from '@react-three/drei'
-import { useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { brands } from '../data/brands'
 import { mainEvent } from '../data/mock'
-import { MAT_Y } from './director'
+import { Crowd } from './crowd/Crowd'
+import { MAT_Y, type FightDirector } from './director'
+import { FIRST_ROW, ROW_DEPTH, ROW_RISE, TIERS } from './stadium'
 import { grimeTexture, puddleTexture, screenTexture, whenFontsReady } from './textures'
 
 const RIG_Y = 9.5
 const RIG_HALF = 4.2
-const TIERS = 9
-const FIRST_ROW = 8.2
-const ROW_DEPTH = 1.05
-const ROW_RISE = 0.55
-
-interface Seat {
-  x: number
-  y: number
-  z: number
-  h: number
-  phase: number
-  tone: number
-}
-
-/** Seats along the four sides of each tier, like an arena bowl. */
-const seats: Seat[] = (() => {
-  let seed = 21
-  const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296)
-  const out: Seat[] = []
-  for (let k = 0; k < TIERS; k++) {
-    const d = FIRST_ROW + k * ROW_DEPTH
-    const y = 0.2 + k * ROW_RISE
-    for (let side = 0; side < 4; side++) {
-      for (let s = -d; s < d; s += 0.62) {
-        if (rand() < 0.07) continue // empty seat
-        const along = s + (rand() - 0.5) * 0.15
-        const [x, z] = [
-          [along, -d],
-          [d, along],
-          [-along, d],
-          [-d, -along],
-        ][side]
-        out.push({ x, y, z, h: 0.85 + rand() * 0.25, phase: rand() * 10, tone: rand() })
-      }
-    }
-  }
-  return out
-})()
-
-function Crowd({ reduced }: { reduced: boolean }) {
-  const bodies = useRef<THREE.InstancedMesh>(null)
-  const heads = useRef<THREE.InstancedMesh>(null)
-  const flashes = useRef<THREE.InstancedMesh>(null)
-  const dummy = useMemo(() => new THREE.Object3D(), [])
-
-  useLayoutEffect(() => {
-    const color = new THREE.Color()
-    seats.forEach((p, i) => {
-      color.setHSL(0.6, 0.2, 0.02 + p.tone * 0.035)
-      bodies.current?.setColorAt(i, color)
-    })
-    if (bodies.current?.instanceColor) bodies.current.instanceColor.needsUpdate = true
-  }, [])
-
-  const place = (t: number) => {
-    seats.forEach((p, i) => {
-      const cheer = reduced ? 0 : Math.max(0, Math.sin(t * 3.5 + p.phase)) * 0.08
-      dummy.position.set(p.x, p.y + 0.55 * p.h + cheer, p.z)
-      dummy.scale.set(1, p.h, 1)
-      dummy.updateMatrix()
-      bodies.current?.setMatrixAt(i, dummy.matrix)
-      dummy.position.set(p.x, p.y + 1.25 * p.h + cheer, p.z)
-      dummy.scale.setScalar(1)
-      dummy.updateMatrix()
-      heads.current?.setMatrixAt(i, dummy.matrix)
-      // a few phones flash each frame
-      const on = !reduced && Math.random() < 0.004
-      dummy.position.set(p.x, p.y + 1.45, p.z)
-      dummy.scale.setScalar(on ? 1 : 0)
-      dummy.updateMatrix()
-      flashes.current?.setMatrixAt(i, dummy.matrix)
-    })
-    for (const m of [bodies, heads, flashes]) if (m.current) m.current.instanceMatrix.needsUpdate = true
-  }
-
-  useLayoutEffect(() => place(0))
-  useFrame(({ clock }) => {
-    if (!reduced) place(clock.elapsedTime)
-  })
-
-  return (
-    <>
-      <instancedMesh ref={bodies} args={[undefined, undefined, seats.length]}>
-        <capsuleGeometry args={[0.2, 0.7, 4, 8]} />
-        <meshStandardMaterial roughness={1} />
-      </instancedMesh>
-      <instancedMesh ref={heads} args={[undefined, undefined, seats.length]}>
-        <sphereGeometry args={[0.13, 10, 8]} />
-        <meshStandardMaterial color="#0c0d10" roughness={1} />
-      </instancedMesh>
-      <instancedMesh ref={flashes} args={[undefined, undefined, seats.length]}>
-        <sphereGeometry args={[0.05, 6, 4]} />
-        <meshBasicMaterial color="#ffffff" toneMapped={false} />
-      </instancedMesh>
-    </>
-  )
-}
 
 function Bleachers() {
   return (
@@ -262,7 +166,7 @@ function Boards() {
           </mesh>
           <mesh position={[0, 0, 0.16]}>
             <planeGeometry args={[8, 4]} />
-            <meshBasicMaterial map={tex} toneMapped={false} color="#9a9a9a" />
+            <meshBasicMaterial map={tex} toneMapped={false} color="#4a4a4a" />
           </mesh>
         </group>
       ))}
@@ -270,7 +174,7 @@ function Boards() {
   )
 }
 
-export function Venue({ reduced }: { reduced: boolean }) {
+export function Venue({ reduced, director }: { reduced: boolean; director: FightDirector }) {
   const floor = useMemo(() => {
     const rough = puddleTexture()
     rough.repeat.set(10, 10)
@@ -328,10 +232,10 @@ export function Venue({ reduced }: { reduced: boolean }) {
           position={[x, RIG_Y - 0.3, z]}
           target={target}
           color="#e6f0ff"
-          intensity={110}
-          distance={18}
-          angle={0.42}
-          penumbra={0.55}
+          intensity={140}
+          distance={14}
+          angle={0.44}
+          penumbra={0.4}
           decay={1.5}
           volumetric={false}
           castShadow={i < 2}
@@ -339,13 +243,24 @@ export function Venue({ reduced }: { reduced: boolean }) {
           shadow-bias={-0.0004}
         />
       ))}
+      <SpotLight
+        position={[0, RIG_Y - 0.3, 0]}
+        target={target}
+        color="#f2f7ff"
+        intensity={90}
+        distance={14}
+        angle={0.5}
+        penumbra={0.5}
+        decay={1.5}
+        volumetric={false}
+      />
 
-      {/* corner rim lights and a cool wash over the stands */}
-      <pointLight position={[-6, 4, -4]} color="#ff3b30" intensity={22} distance={14} />
-      <pointLight position={[6, 4, 4]} color="#3b7bff" intensity={22} distance={14} />
-      <pointLight position={[0, 7, 0]} color="#3fe0ff" intensity={4} distance={30} />
+      {/* tight corner rim lights over the mat, kept off the stands */}
+      <pointLight position={[-4.5, 3.5, -3]} color="#ff3b30" intensity={11} distance={9} />
+      <pointLight position={[4.5, 3.5, 3]} color="#3b7bff" intensity={11} distance={9} />
+      <pointLight position={[0, 6, 0]} color="#3fe0ff" intensity={3} distance={10} />
 
-      <Crowd reduced={reduced} />
+      <Crowd director={director} reduced={reduced} />
       <Sparkles count={140} scale={[10, 7, 10]} position={[0, 5, 0]} size={2} speed={reduced ? 0 : 0.25} opacity={0.35} color="#cfe6ff" />
     </>
   )

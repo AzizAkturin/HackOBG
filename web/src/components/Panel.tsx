@@ -11,14 +11,13 @@ interface Props {
 export function Panel({ title, titleId, aside, className = '', children }: Props) {
   return (
     <section aria-labelledby={titleId} className={`panel p-5 ${className}`}>
-      <header className="flex items-center gap-3">
-        <h2 id={titleId} className="label shrink-0 scroll-mt-24 text-ink">
+      <header className="flex items-center justify-between gap-3 border-b border-line pb-3">
+        <h2 id={titleId} className="scroll-mt-24 font-display text-xl font-bold text-ink">
           {title}
         </h2>
-        <span className="h-0 flex-1 border-t-2 border-dashed border-line" aria-hidden />
         {aside}
       </header>
-      <div className="mt-4">{children}</div>
+      <div className="mt-3">{children}</div>
     </section>
   )
 }

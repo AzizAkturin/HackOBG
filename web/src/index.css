@@ -10,6 +10,50 @@
 @theme {
   --font-steel: "Steel", "Barlow Condensed", "Arial Narrow", sans-serif;
 
+  --color-night: #ebebeb;
+  --color-panel: #ffffff;
+  --color-well: #f2f2f2;
+  --color-line: #d4d4d4;
+  --color-ink: #121212;
+  --color-mute: #6c6c6c;
+  --color-red: #d00000;
+  --color-blue: #1a5fd0;
+  --color-gold: #b86e00;
+  --color-green: #1a8a4a;
+
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply text-ink font-body antialiased;
+    font-size: 16px;
+    line-height: 1.45;
+    background: var(--color-night);
+  }
+  :root {
+    /* concrete grit: fractal noise, tiled */
+    --grit: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.45  0 0 0 0 0.4  0 0 0 0.09 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: 2px;
+  }
+}
+
+.panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+
+/* dark surfaces (the 3D arena) keep the original palette */
+.theme-dark {
   --color-night: #090807;
   --color-panel: #12100e;
   --color-well: #1c1916;
@@ -20,46 +64,6 @@
   --color-blue: #4d8dff;
   --color-gold: #ffc94a;
   --color-green: #5ce39a;
-
-  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
-  --font-body: "Barlow", ui-sans-serif, system-ui, sans-serif;
-}
-
-@layer base {
-  html {
-    color-scheme: dark;
-  }
-  body {
-    @apply text-ink font-body antialiased;
-    font-size: 16px;
-    line-height: 1.45;
-    background:
-      var(--grit),
-      radial-gradient(ellipse 60% 40% at 50% 0%, rgb(140 170 200 / 0.06), transparent 70%),
-      radial-gradient(ellipse 40% 50% at 0% 60%, rgb(255 77 77 / 0.05), transparent 70%),
-      radial-gradient(ellipse 40% 50% at 100% 60%, rgb(77 141 255 / 0.05), transparent 70%),
-      var(--color-night);
-  }
-  :root {
-    /* concrete grit: fractal noise, tiled */
-    --grit: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.45  0 0 0 0 0.4  0 0 0 0.09 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  }
-  :focus-visible {
-    outline: 2px solid var(--color-gold);
-    outline-offset: 2px;
-  }
-}
-
-.panel {
-  background:
-    var(--grit),
-    linear-gradient(180deg, rgb(24 22 20 / 0.95), rgb(12 11 10 / 0.96));
-  border: 1px solid var(--color-line);
-  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
-  box-shadow:
-    inset 0 1px 0 rgb(63 224 255 / 0.12),
-    inset 0 0 40px rgb(0 0 0 / 0.5),
-    0 24px 48px -24px rgb(0 0 0 / 0.8);
 }
 
 /* Futuristic cut corners with a thin cyan edge light */
@@ -83,6 +87,12 @@
   font-family: var(--font-steel);
   letter-spacing: 0.02em;
   text-shadow: 0 2px 0 rgb(0 0 0 / 0.6);
+}
+
+.headline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .label {

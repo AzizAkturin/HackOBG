@@ -151,7 +151,6 @@ function HoloScreen({ reduced }: { reduced: boolean }) {
 export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean }) {
   const base = useMemo(
     () => ({
-      canvas: ringCanvasTexture(),
       rough: noiseTexture(),
       grime: (() => {
         const t = grimeTexture(91)
@@ -162,6 +161,8 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
     [],
   )
   const [skirt, setSkirt] = useState(() => skirtTexture())
+  const [floor, setFloor] = useState(() => ringCanvasTexture())
+  useEffect(() => whenFontsReady(() => setFloor(ringCanvasTexture())), [])
   // redraw the banner once the Steel font has loaded
   useEffect(() => whenFontsReady(() => setSkirt(skirtTexture())), [])
 
@@ -220,7 +221,7 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
       {/* canvas */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, MAT_Y + 0.003, 0]} receiveShadow>
         <planeGeometry args={[ringSize, ringSize]} />
-        <meshStandardMaterial map={base.canvas} roughness={0.9} roughnessMap={base.rough} />
+        <meshStandardMaterial map={floor} roughness={0.9} roughnessMap={base.rough} />
       </mesh>
       {[-1, 1].map((s) => (
         <group key={s}>

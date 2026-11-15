@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { brands } from '../data/brands'
-import { formatClock, mainEvent } from '../data/mock'
+import { formatClock, mainEvent, roundLabel } from '../data/mock'
 import type { Round } from '../game/useRound'
 import type { FightEvent } from '../three/director'
 import { MOVES } from '../three/moves'
@@ -50,22 +50,16 @@ export function Octagon({ round, selected, onSelect }: Props) {
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div className="min-w-0">
           <p className="label flex flex-wrap items-center gap-x-3 text-mute">
-            <span className="bg-red px-1.5 text-night">Main event</span>
             <span className="text-blue">{mainEvent.weightClass}</span>
-            <span>
-              R{String(mainEvent.roundId).padStart(3, '0')} · {mainEvent.arena}
-            </span>
+            <span>{roundLabel(mainEvent.roundId)}</span>
           </p>
-          <h1 id="octagon-title" className="steel mt-1.5 text-2xl uppercase leading-tight sm:text-3xl">
-            <span style={{ color: red.accent }}>{red.name}</span>
-            <span className="text-mute"> vs </span>
-            <span style={{ color: blue.accent }}>{blue.name}</span>
-            <span className="font-body text-lg font-normal normal-case tracking-normal text-mute [text-shadow:none] sm:text-xl"> · {mainEvent.task}</span>
+          <h1 id="octagon-title" className="mt-1.5 text-xl leading-tight sm:text-2xl">
+            {mainEvent.task}
           </h1>
         </div>
         <dl className="flex shrink-0 gap-6 font-display">
           <div>
-            <dt className="label text-mute">{locked ? 'Status' : 'Bell in'}</dt>
+            <dt className="label text-mute">{locked ? 'Round' : 'Bell in'}</dt>
             <dd className={`text-3xl font-bold tabular-nums ${locked || urgent ? 'text-red' : 'text-ink'}`}>
               {phase === 'rest' ? 'BREAK' : locked ? 'LIVE' : formatClock(secondsLeft)}
             </dd>
@@ -85,7 +79,7 @@ export function Octagon({ round, selected, onSelect }: Props) {
       </div>
 
       <div
-        className="panel relative mx-auto mt-3 aspect-[2/1] overflow-hidden p-0"
+        className="panel theme-dark relative mx-auto mt-3 aspect-[2/1] overflow-hidden p-0"
         style={{ width: 'min(100%, calc((100vh - 230px) * 2))' }}
         role="img"
         aria-label={`The ring: ${red.name} in the red corner, ${blue.name} in the blue corner. Click a robot to back it.`}
@@ -98,23 +92,21 @@ export function Octagon({ round, selected, onSelect }: Props) {
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-black/70 to-transparent p-3 sm:p-5">
           {mainEvent.fighters.map((f, i) => (
             <div key={f.id} className={`w-[42%] max-w-sm ${i === 1 ? 'text-right' : ''}`}>
-              <p className="label text-[11px]" style={{ color: i === 0 ? 'var(--color-red)' : 'var(--color-blue)' }}>
-                {i === 0 ? 'Red corner' : 'Blue corner'}
-              </p>
-              <p className="steel text-xl uppercase leading-none sm:text-3xl" style={{ color: f.accent }}>
+              <p className="headline text-xl uppercase leading-none sm:text-3xl" style={{ color: brands[f.brand].ui }}>
                 {f.name}
               </p>
-              <p className="hidden text-sm text-ink/70 sm:block">{brands[f.brand].label}</p>
               {live && (
-                <>
-                  <div className={`mt-2 h-1.5 skew-x-[-20deg] bg-white/10 ${i === 1 ? 'ml-auto' : ''}`} aria-hidden>
-                    <div
-                      className={`h-full transition-[width] duration-500 ${i === 1 ? 'ml-auto' : ''}`}
-                      style={{ width: `${progress[i] * 100}%`, background: brands[f.brand].glow, boxShadow: `0 0 10px ${brands[f.brand].glow}` }}
-                    />
-                  </div>
-                  <p className="label mt-1 text-[10px] text-ink/60">Task progress {Math.round(progress[i] * 100)}%</p>
-                </>
+                <div
+                  className={`mt-2 h-1.5 skew-x-[-20deg] bg-white/10 ${i === 1 ? 'ml-auto' : ''}`}
+                  role="progressbar"
+                  aria-label={`${f.name} task progress`}
+                  aria-valuenow={Math.round(progress[i] * 100)}
+                >
+                  <div
+                    className={`h-full transition-[width] duration-500 ${i === 1 ? 'ml-auto' : ''}`}
+                    style={{ width: `${progress[i] * 100}%`, background: brands[f.brand].glow, boxShadow: `0 0 10px ${brands[f.brand].glow}` }}
+                  />
+                </div>
               )}
             </div>
           ))}
@@ -123,18 +115,15 @@ export function Octagon({ round, selected, onSelect }: Props) {
         {callout && (
           <p
             key={callout.key}
-            className="pop steel pointer-events-none absolute left-1/2 top-[38%] whitespace-nowrap text-5xl uppercase sm:text-7xl"
+            className="pop headline pointer-events-none absolute left-1/2 top-[38%] whitespace-nowrap text-5xl uppercase sm:text-7xl"
             style={{ color: callout.color, textShadow: '0 4px 24px rgb(0 0 0 / 0.8)' }}
           >
             {callout.text}
           </p>
         )}
-        {phase === 'fighting' && !callout && (
-          <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 label text-ink/70">Live · voting opens after the bell</p>
-        )}
         {phase === 'rest' && (
           <div className="pop pointer-events-none absolute left-1/2 top-[40%] text-center">
-            <p className="steel text-4xl uppercase sm:text-6xl">End of round</p>
+            <p className="headline text-4xl uppercase sm:text-6xl">End of round</p>
             <p className="label mt-2 text-cyan-300">Fighters to their corners · voting opens</p>
           </div>
         )}

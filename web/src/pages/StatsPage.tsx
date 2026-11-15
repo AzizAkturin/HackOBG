@@ -6,10 +6,10 @@ import type { Round } from '../game/useRound'
 
 export function StatsPage({ round }: { round: Round }) {
   return (
-    <main className="mx-auto max-w-[1400px] px-4 pb-12">
+    <main className="mx-auto max-w-[1400px] px-4 pb-12 pt-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="steel text-3xl uppercase sm:text-4xl">Stats & rankings</h1>
-        <Link to="/" className="label flex min-h-11 items-center text-[11px] text-gold hover:underline">
+        <h1 className="headline text-3xl uppercase sm:text-4xl">Stats & rankings</h1>
+        <Link to="/" className="label flex min-h-11 items-center text-[11px] text-blue hover:underline">
           ◂ Back to the ring
         </Link>
       </div>

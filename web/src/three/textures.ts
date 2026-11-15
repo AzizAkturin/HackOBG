@@ -160,7 +160,7 @@ export function ringCanvasTexture() {
     ctx.fillStyle = '#c4262e'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.font = '700 170px "Steel", "Barlow Condensed", sans-serif'
+    ctx.font = 'italic 800 190px "Barlow Condensed", "Arial Narrow", sans-serif'
     ctx.fillText('WAB', c, c + 4)
     ctx.fillStyle = '#2a2d33'
     ctx.font = '600 32px "Barlow Condensed", sans-serif'
@@ -310,7 +310,7 @@ export function screenTexture(left: string, right: string, leftColor: string, ri
   const tex = canvasTexture(1024, (ctx, s) => {
     ctx.fillStyle = '#05070b'
     ctx.fillRect(0, 0, s, s)
-    ctx.font = '700 150px "Steel", "Barlow Condensed", sans-serif'
+    ctx.font = '700 150px "Barlow Condensed", sans-serif'
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'right'
     ctx.fillStyle = leftColor
@@ -320,7 +320,7 @@ export function screenTexture(left: string, right: string, leftColor: string, ri
     ctx.fillText(right.toUpperCase(), s * 0.56, s * 0.5)
     ctx.textAlign = 'center'
     ctx.fillStyle = '#e8e4dc'
-    ctx.font = '700 90px "Steel", "Barlow Condensed", sans-serif'
+    ctx.font = '700 90px "Barlow Condensed", sans-serif'
     ctx.fillText('VS', s / 2, s * 0.5)
     // LED pixel grid
     ctx.fillStyle = 'rgb(0 0 0 / 0.45)'
@@ -362,7 +362,7 @@ export function puddleTexture() {
 /** Redraw canvas textures once web fonts (Steel) have loaded. */
 export function whenFontsReady(fn: () => void) {
   if (typeof document !== 'undefined' && document.fonts) {
-    document.fonts.load('700 64px "Steel"').then(fn, fn)
+    Promise.all([document.fonts.load('700 64px "Steel"'), document.fonts.load('italic 800 64px "Barlow Condensed"')]).then(fn, fn)
   }
 }
 

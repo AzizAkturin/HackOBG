@@ -1,6 +1,7 @@
 import { brands } from '../data/brands'
-import { firstName, mainEvent } from '../data/mock'
+import { mainEvent } from '../data/mock'
 import type { Round } from '../game/useRound'
+import { firmware } from '../three/robots/firmware'
 import { RobotBadge } from './RobotBadge'
 
 interface Props {
@@ -20,9 +21,6 @@ export function FighterCard({ index, round, selected, onSelect, className = '' }
   const stats: [string, string][] = [
     ['Record', `${f.record[0]}-${f.record[1]}`],
     ['ELO', String(f.elo)],
-    ['Streak', f.streak >= 0 ? `W${f.streak}` : `L${-f.streak}`],
-    ['Avg finish', `${f.avgFinish}s`],
-    ['Crowd votes', `${Math.round(f.voteShare * 100)}%`],
     ['Model', f.model],
   ]
 
@@ -41,17 +39,17 @@ export function FighterCard({ index, round, selected, onSelect, className = '' }
 
       <div className="mt-3 flex items-center gap-4">
         <div className="grid h-24 w-24 shrink-0 place-items-center border border-line bg-well">
-          <RobotBadge brand={brands[f.brand]} size={80} />
+          <RobotBadge brand={brands[f.brand]} firmware={firmware[f.weightClass]} size={80} />
         </div>
         <div className="min-w-0">
-          <h2 className="steel text-3xl uppercase leading-none">{f.name}</h2>
+          <h2 className="headline text-3xl uppercase leading-none">{f.name}</h2>
           <p className="text-xl" style={{ color: f.accent }}>
             "{f.nickname}"
           </p>
         </div>
       </div>
 
-      <dl className="mt-4 divide-y-2 divide-dashed divide-line border-y-2 border-dashed border-line">
+      <dl className="mt-4 divide-y divide-line border-y border-line">
         {stats.map(([k, v]) => (
           <div key={k} className="flex justify-between gap-3 py-1.5 text-lg">
             <dt className="text-mute">{k}</dt>
@@ -61,10 +59,7 @@ export function FighterCard({ index, round, selected, onSelect, className = '' }
       </dl>
 
       <div className="mt-4">
-        <div className="flex justify-between text-lg">
-          <span className="text-mute">{round.backers[index]} backers</span>
-          <span className="tabular-nums">{Math.round(share * 100)}% of pool</span>
-        </div>
+        <p className="text-lg text-mute">{round.backers[index]} backers</p>
         <div className="mt-1 h-2 bg-well" aria-hidden>
           <div className="h-full transition-[width] duration-500" style={{ width: `${share * 100}%`, background: f.accent }} />
         </div>
@@ -80,11 +75,11 @@ export function FighterCard({ index, round, selected, onSelect, className = '' }
         style={{
           borderColor: f.accent,
           background: selected ? f.accent : 'transparent',
-          color: selected ? 'var(--color-night)' : f.accent,
+          color: selected ? '#fff' : f.accent,
           marginTop: '1.25rem',
         }}
       >
-        {selected ? `✓ ${firstName(f.name)}` : `Pick ${firstName(f.name)}`}
+        {selected ? '✓ Selected' : 'Back'}
       </button>
     </article>
   )
