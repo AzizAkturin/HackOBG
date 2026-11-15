@@ -6,13 +6,13 @@ export const wabAbi = [
   },
   {
     "type": "function",
-    "name": "MAX_FIGHTERS",
+    "name": "MAX_FEE_BPS",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint8",
-        "internalType": "uint8"
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -32,20 +32,7 @@ export const wabAbi = [
   },
   {
     "type": "function",
-    "name": "MAX_RAKE_BPS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint16",
-        "internalType": "uint16"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "accruedRake",
+    "name": "MAX_ROUND_ODDS",
     "inputs": [],
     "outputs": [
       {
@@ -58,10 +45,65 @@ export const wabAbi = [
   },
   {
     "type": "function",
+    "name": "MIN_ROUND_ODDS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ROUNDS_TO_WIN",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "buy",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "side",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "minShares",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "shares",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
     "name": "cancel",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -74,7 +116,7 @@ export const wabAbi = [
     "name": "cancelExpired",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -87,12 +129,18 @@ export const wabAbi = [
     "name": "claim",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
-    "outputs": [],
+    "outputs": [
+      {
+        "name": "payout",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable"
   },
   {
@@ -107,19 +155,34 @@ export const wabAbi = [
     ],
     "outputs": [
       {
-        "name": "minBet",
+        "name": "minTrade",
         "type": "uint96",
         "internalType": "uint96"
       },
       {
-        "name": "maxBet",
+        "name": "maxTrade",
         "type": "uint96",
         "internalType": "uint96"
       },
       {
-        "name": "rakeBps",
+        "name": "bankroll",
+        "type": "uint96",
+        "internalType": "uint96"
+      },
+      {
+        "name": "liquidity",
+        "type": "uint96",
+        "internalType": "uint96"
+      },
+      {
+        "name": "feeBps",
         "type": "uint16",
         "internalType": "uint16"
+      },
+      {
+        "name": "tradeWindow",
+        "type": "uint32",
+        "internalType": "uint32"
       },
       {
         "name": "voteDuration",
@@ -146,7 +209,7 @@ export const wabAbi = [
   },
   {
     "type": "function",
-    "name": "createRound",
+    "name": "createMatch",
     "inputs": [
       {
         "name": "classId",
@@ -154,9 +217,14 @@ export const wabAbi = [
         "internalType": "uint8"
       },
       {
-        "name": "fighterIds",
-        "type": "uint32[]",
-        "internalType": "uint32[]"
+        "name": "fighterA",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "fighterB",
+        "type": "uint32",
+        "internalType": "uint32"
       },
       {
         "name": "taskHash",
@@ -164,76 +232,19 @@ export const wabAbi = [
         "internalType": "bytes32"
       },
       {
-        "name": "lockTime",
+        "name": "tradeEnd",
         "type": "uint40",
         "internalType": "uint40"
       }
     ],
     "outputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "enter",
-    "inputs": [
-      {
-        "name": "roundId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "fighterIndex",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "payable"
-  },
-  {
-    "type": "function",
-    "name": "entries",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "amount",
-        "type": "uint128",
-        "internalType": "uint128"
-      },
-      {
-        "name": "fighterIndex",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "voted",
-        "type": "bool",
-        "internalType": "bool"
-      },
-      {
-        "name": "claimed",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -276,6 +287,240 @@ export const wabAbi = [
   },
   {
     "type": "function",
+    "name": "fundHouse",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "hasVoted",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "houseBalance",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isTradingOpen",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "matches",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct WAB.Match",
+        "components": [
+          {
+            "name": "classId",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "phase",
+            "type": "uint8",
+            "internalType": "enum WAB.Phase"
+          },
+          {
+            "name": "round",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "winsA",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "winsB",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "winner",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "fighterA",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "fighterB",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "tradeEnd",
+            "type": "uint40",
+            "internalType": "uint40"
+          },
+          {
+            "name": "voteEnd",
+            "type": "uint40",
+            "internalType": "uint40"
+          },
+          {
+            "name": "deadline",
+            "type": "uint40",
+            "internalType": "uint40"
+          },
+          {
+            "name": "anchor",
+            "type": "int128",
+            "internalType": "int128"
+          },
+          {
+            "name": "roundOdds",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "sharesA",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "sharesB",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "pool",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "fees",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "refundOwed",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "refundFunds",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "taskHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "revealCommit",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "pitchesHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "minTrade",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "maxTrade",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "liquidity",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "feeBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "tradeWindow",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "voteDuration",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "settleGrace",
+            "type": "uint32",
+            "internalType": "uint32"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "nextFighterId",
     "inputs": [],
     "outputs": [
@@ -289,7 +534,7 @@ export const wabAbi = [
   },
   {
     "type": "function",
-    "name": "nextRoundId",
+    "name": "nextMatchId",
     "inputs": [],
     "outputs": [
       {
@@ -305,7 +550,7 @@ export const wabAbi = [
     "name": "openVoting",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -322,6 +567,30 @@ export const wabAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "openingPriceA",
+    "inputs": [
+      {
+        "name": "fighterA",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "fighterB",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -364,26 +633,7 @@ export const wabAbi = [
   },
   {
     "type": "function",
-    "name": "phaseOf",
-    "inputs": [
-      {
-        "name": "roundId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "enum WAB.Phase"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "poolByIndex",
+    "name": "positions",
     "inputs": [
       {
         "name": "",
@@ -392,6 +642,45 @@ export const wabAbi = [
       },
       {
         "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "sharesA",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "sharesB",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "paid",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "received",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "settled",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "priceA",
+    "inputs": [
+      {
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -399,8 +688,76 @@ export const wabAbi = [
     "outputs": [
       {
         "name": "",
-        "type": "uint128",
-        "internalType": "uint128"
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "quoteBuy",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "side",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "shares",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "fee",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "quoteSell",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "side",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "shares",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "proceeds",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "fee",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -410,12 +767,18 @@ export const wabAbi = [
     "name": "refund",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
-    "outputs": [],
+    "outputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable"
   },
   {
@@ -449,133 +812,89 @@ export const wabAbi = [
   },
   {
     "type": "function",
-    "name": "roundFighters",
+    "name": "resolveRound",
     "inputs": [
       {
-        "name": "",
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "swapped",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "tieWinner",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "roundOddsFor",
+    "inputs": [
+      {
+        "name": "fighterA",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "fighterB",
+        "type": "uint32",
+        "internalType": "uint32"
       }
     ],
     "outputs": [
       {
         "name": "",
-        "type": "uint32",
-        "internalType": "uint32"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "rounds",
+    "name": "sell",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "side",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "shares",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minProceeds",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
     "outputs": [
       {
-        "name": "",
-        "type": "tuple",
-        "internalType": "struct WAB.Round",
-        "components": [
-          {
-            "name": "classId",
-            "type": "uint8",
-            "internalType": "uint8"
-          },
-          {
-            "name": "phase",
-            "type": "uint8",
-            "internalType": "enum WAB.Phase"
-          },
-          {
-            "name": "fighterCount",
-            "type": "uint8",
-            "internalType": "uint8"
-          },
-          {
-            "name": "winnerIndex",
-            "type": "uint8",
-            "internalType": "uint8"
-          },
-          {
-            "name": "lockTime",
-            "type": "uint40",
-            "internalType": "uint40"
-          },
-          {
-            "name": "voteEnd",
-            "type": "uint40",
-            "internalType": "uint40"
-          },
-          {
-            "name": "settleDeadline",
-            "type": "uint40",
-            "internalType": "uint40"
-          },
-          {
-            "name": "taskHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "revealCommit",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "pitchesHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "totalPool",
-            "type": "uint128",
-            "internalType": "uint128"
-          },
-          {
-            "name": "rake",
-            "type": "uint128",
-            "internalType": "uint128"
-          },
-          {
-            "name": "minBet",
-            "type": "uint96",
-            "internalType": "uint96"
-          },
-          {
-            "name": "maxBet",
-            "type": "uint96",
-            "internalType": "uint96"
-          },
-          {
-            "name": "rakeBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "voteDuration",
-            "type": "uint32",
-            "internalType": "uint32"
-          },
-          {
-            "name": "settleGrace",
-            "type": "uint32",
-            "internalType": "uint32"
-          }
-        ]
+        "name": "proceeds",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -631,19 +950,34 @@ export const wabAbi = [
         "internalType": "struct WAB.WeightClass",
         "components": [
           {
-            "name": "minBet",
+            "name": "minTrade",
             "type": "uint96",
             "internalType": "uint96"
           },
           {
-            "name": "maxBet",
+            "name": "maxTrade",
             "type": "uint96",
             "internalType": "uint96"
           },
           {
-            "name": "rakeBps",
+            "name": "bankroll",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "liquidity",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "feeBps",
             "type": "uint16",
             "internalType": "uint16"
+          },
+          {
+            "name": "tradeWindow",
+            "type": "uint32",
+            "internalType": "uint32"
           },
           {
             "name": "voteDuration",
@@ -673,31 +1007,22 @@ export const wabAbi = [
   },
   {
     "type": "function",
-    "name": "settle",
+    "name": "stageOf",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "labelToIndex",
-        "type": "uint8[]",
-        "internalType": "uint8[]"
-      },
-      {
-        "name": "judgeRank",
-        "type": "uint8[]",
-        "internalType": "uint8[]"
-      },
-      {
-        "name": "salt",
-        "type": "bytes32",
-        "internalType": "bytes32"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -717,7 +1042,7 @@ export const wabAbi = [
     "name": "vote",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -732,22 +1057,27 @@ export const wabAbi = [
   },
   {
     "type": "function",
-    "name": "votesByLabel",
+    "name": "votes",
     "inputs": [
       {
-        "name": "",
+        "name": "matchId",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "round",
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "label0",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "label1",
         "type": "uint32",
         "internalType": "uint32"
       }
@@ -756,7 +1086,7 @@ export const wabAbi = [
   },
   {
     "type": "function",
-    "name": "withdrawRake",
+    "name": "withdrawHouse",
     "inputs": [
       {
         "name": "amount",
@@ -772,7 +1102,7 @@ export const wabAbi = [
     "name": "Claimed",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
@@ -785,52 +1115,9 @@ export const wabAbi = [
       },
       {
         "name": "payout",
-        "type": "uint128",
-        "indexed": false,
-        "internalType": "uint128"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "Entered",
-    "inputs": [
-      {
-        "name": "roundId",
         "type": "uint256",
-        "indexed": true,
+        "indexed": false,
         "internalType": "uint256"
-      },
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "fighterIndex",
-        "type": "uint8",
-        "indexed": false,
-        "internalType": "uint8"
-      },
-      {
-        "name": "amount",
-        "type": "uint128",
-        "indexed": false,
-        "internalType": "uint128"
-      },
-      {
-        "name": "fighterPool",
-        "type": "uint128",
-        "indexed": false,
-        "internalType": "uint128"
-      },
-      {
-        "name": "totalPool",
-        "type": "uint128",
-        "indexed": false,
-        "internalType": "uint128"
       }
     ],
     "anonymous": false
@@ -868,35 +1155,60 @@ export const wabAbi = [
   },
   {
     "type": "event",
-    "name": "Refunded",
+    "name": "HouseFunded",
     "inputs": [
       {
-        "name": "roundId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "user",
+        "name": "from",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
         "name": "amount",
-        "type": "uint128",
+        "type": "uint256",
         "indexed": false,
-        "internalType": "uint128"
+        "internalType": "uint256"
+      },
+      {
+        "name": "houseBalance",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
   },
   {
     "type": "event",
-    "name": "RoundCancelled",
+    "name": "HouseWithdrawn",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "to",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "houseBalance",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MatchCancelled",
+    "inputs": [
+      {
+        "name": "matchId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
@@ -912,10 +1224,10 @@ export const wabAbi = [
   },
   {
     "type": "event",
-    "name": "RoundCreated",
+    "name": "MatchCreated",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
@@ -927,10 +1239,28 @@ export const wabAbi = [
         "internalType": "uint8"
       },
       {
-        "name": "fighterIds",
-        "type": "uint32[]",
+        "name": "fighterA",
+        "type": "uint32",
         "indexed": false,
-        "internalType": "uint32[]"
+        "internalType": "uint32"
+      },
+      {
+        "name": "fighterB",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "roundOdds",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "priceA",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       },
       {
         "name": "taskHash",
@@ -939,7 +1269,13 @@ export const wabAbi = [
         "internalType": "bytes32"
       },
       {
-        "name": "lockTime",
+        "name": "tradeEnd",
+        "type": "uint40",
+        "indexed": false,
+        "internalType": "uint40"
+      },
+      {
+        "name": "time",
         "type": "uint40",
         "indexed": false,
         "internalType": "uint40"
@@ -949,16 +1285,16 @@ export const wabAbi = [
   },
   {
     "type": "event",
-    "name": "Settled",
+    "name": "MatchResolved",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
       },
       {
-        "name": "winnerIndex",
+        "name": "winner",
         "type": "uint8",
         "indexed": false,
         "internalType": "uint8"
@@ -970,28 +1306,175 @@ export const wabAbi = [
         "internalType": "uint32"
       },
       {
-        "name": "labelToIndex",
-        "type": "uint8[]",
+        "name": "payout",
+        "type": "uint256",
         "indexed": false,
-        "internalType": "uint8[]"
+        "internalType": "uint256"
       },
       {
-        "name": "totalPool",
-        "type": "uint128",
+        "name": "houseReturn",
+        "type": "uint256",
         "indexed": false,
-        "internalType": "uint128"
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Refunded",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
       },
       {
-        "name": "rake",
-        "type": "uint128",
-        "indexed": false,
-        "internalType": "uint128"
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       },
       {
-        "name": "refundMode",
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RoundResolved",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "round",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "winner",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "votesA",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "votesB",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "swapped",
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
+      },
+      {
+        "name": "winsA",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "winsB",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "priceA",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "tradeEnd",
+        "type": "uint40",
+        "indexed": false,
+        "internalType": "uint40"
+      },
+      {
+        "name": "time",
+        "type": "uint40",
+        "indexed": false,
+        "internalType": "uint40"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Traded",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "side",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "isBuy",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "mon",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "shares",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "fee",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "priceA",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "time",
+        "type": "uint40",
+        "indexed": false,
+        "internalType": "uint40"
       }
     ],
     "anonymous": false
@@ -1001,10 +1484,16 @@ export const wabAbi = [
     "name": "Voted",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
+      },
+      {
+        "name": "round",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
       },
       {
         "name": "user",
@@ -1026,10 +1515,16 @@ export const wabAbi = [
     "name": "VotingOpened",
     "inputs": [
       {
-        "name": "roundId",
+        "name": "matchId",
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
+      },
+      {
+        "name": "round",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
       },
       {
         "name": "revealCommit",
@@ -1045,6 +1540,12 @@ export const wabAbi = [
       },
       {
         "name": "voteEnd",
+        "type": "uint40",
+        "indexed": false,
+        "internalType": "uint40"
+      },
+      {
+        "name": "time",
         "type": "uint40",
         "indexed": false,
         "internalType": "uint40"
@@ -1069,19 +1570,34 @@ export const wabAbi = [
         "internalType": "struct WAB.WeightClass",
         "components": [
           {
-            "name": "minBet",
+            "name": "minTrade",
             "type": "uint96",
             "internalType": "uint96"
           },
           {
-            "name": "maxBet",
+            "name": "maxTrade",
             "type": "uint96",
             "internalType": "uint96"
           },
           {
-            "name": "rakeBps",
+            "name": "bankroll",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "liquidity",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "feeBps",
             "type": "uint16",
             "internalType": "uint16"
+          },
+          {
+            "name": "tradeWindow",
+            "type": "uint32",
+            "internalType": "uint32"
           },
           {
             "name": "voteDuration",
@@ -1110,7 +1626,7 @@ export const wabAbi = [
   },
   {
     "type": "error",
-    "name": "AlreadyClaimed",
+    "name": "AlreadySettled",
     "inputs": []
   },
   {
@@ -1120,22 +1636,7 @@ export const wabAbi = [
   },
   {
     "type": "error",
-    "name": "BadFighterCount",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "BadFighterIndex",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "BadLabel",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "BadLockTime",
     "inputs": []
   },
   {
@@ -1145,27 +1646,17 @@ export const wabAbi = [
   },
   {
     "type": "error",
-    "name": "BetOutOfRange",
+    "name": "BadSide",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "BettingClosed",
+    "name": "BadTradeEnd",
     "inputs": []
   },
   {
     "type": "error",
     "name": "ClassInactive",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "DifferentFighter",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "DuplicateFighter",
     "inputs": []
   },
   {
@@ -1180,7 +1671,12 @@ export const wabAbi = [
   },
   {
     "type": "error",
-    "name": "InsufficientRake",
+    "name": "HouseTooSmall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InsufficientHouse",
     "inputs": []
   },
   {
@@ -1190,7 +1686,17 @@ export const wabAbi = [
   },
   {
     "type": "error",
-    "name": "NoEntry",
+    "name": "MarketFull",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoPosition",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotEnoughShares",
     "inputs": []
   },
   {
@@ -1210,22 +1716,12 @@ export const wabAbi = [
   },
   {
     "type": "error",
-    "name": "NotPermutation",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "NotRefundable",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "NotTreasury",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "NotWinner",
+    "name": "NothingToClaim",
     "inputs": []
   },
   {
@@ -1235,17 +1731,37 @@ export const wabAbi = [
   },
   {
     "type": "error",
+    "name": "PriceFinal",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "Reentrancy",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "RefundMode",
+    "name": "SameFighter",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "Slippage",
     "inputs": []
   },
   {
     "type": "error",
     "name": "TooEarly",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TradeOutOfRange",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TradingClosed",
     "inputs": []
   },
   {
@@ -1276,11 +1792,6 @@ export const wabAbi = [
   {
     "type": "error",
     "name": "ZeroCommit",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ZeroValue",
     "inputs": []
   }
 ] as const;

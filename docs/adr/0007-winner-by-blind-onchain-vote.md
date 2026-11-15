@@ -1,6 +1,6 @@
 # 0007: Winner decided by entrants' blind on-chain vote
 
-**Status:** Accepted
+**Status:** Amended by [0017](0017-live-market-five-stages.md): one blind vote per round by position holders, no judge tie-break
 
 ## Context
 The product says users vote on their favorite pitch. Most tasks (pitches, creative work, open prompts) have no objective answer. Problem: the voters are also the bettors, so they will try to vote for their own fighter.
