@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { brands } from '../data/brands'
 import { formatClock, mainEvent } from '../data/mock'
-import { drawFrame, H, renderBackLayer, renderFrontLayer, spriteBox, W } from '../game/octagonScene'
 import type { Round } from '../game/useRound'
+import type { FightEvent } from '../three/director'
+import { MOVES } from '../three/moves'
+
+const Arena = lazy(() => import('../three/Arena'))
 
 interface Props {
   round: Round
@@ -9,111 +13,132 @@ interface Props {
   onSelect: (i: number) => void
 }
 
-const FRAME_MS = 140
-const SEGMENTS = 40
+/**
+ * Mock token progress, derived from time since the bell. Replace with
+ * `progress` events from the live stream (tokens / budget per fighter).
+ */
+const MOCK_FINISH_SEC = [24, 27]
+const mockProgress = (elapsed: number) => MOCK_FINISH_SEC.map((d) => Math.min(1, Math.max(0, elapsed / d)))
 
 export function Octagon({ round, selected, onSelect }: Props) {
-  const { locked, secondsLeft, total } = round
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [hovered, setHovered] = useState<number | null>(null)
-  const stateRef = useRef({ locked, selected, hovered })
-  useEffect(() => {
-    stateRef.current = { locked, selected, hovered }
-  }, [locked, selected, hovered])
-
-  useEffect(() => {
-    const ctx = canvasRef.current?.getContext('2d')
-    if (!ctx) return
-    ctx.imageSmoothingEnabled = false
-    const back = renderBackLayer()
-    const front = renderFrontLayer()
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    let tick = 0
-    let last = 0
-    let raf = 0
-    const loop = (t: number) => {
-      raf = requestAnimationFrame(loop)
-      if (t - last < FRAME_MS) return
-      last = t
-      if (!reduced) tick++
-      drawFrame(ctx, back, front, { tick, ...stateRef.current, fighters: mainEvent.fighters })
-    }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [])
-
-  const hitTest = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const r = e.currentTarget.getBoundingClientRect()
-    const x = ((e.clientX - r.left) / r.width) * W
-    const y = ((e.clientY - r.top) / r.height) * H
-    const hit = mainEvent.fighters.findIndex((_, i) => {
-      const b = spriteBox(i, locked)
-      return x >= b.x - 2 && x <= b.x + b.w + 2 && y >= b.y - 3 && y <= b.y + b.h + 2
-    })
-    return hit === -1 ? null : hit
-  }
-
-  const filled = Math.ceil((Math.max(0, secondsLeft) / mainEvent.locksInSec) * SEGMENTS)
+  const { locked, phase, secondsLeft, total } = round
+  const remaining = Math.max(0, secondsLeft) / mainEvent.locksInSec
   const urgent = !locked && secondsLeft <= 15
   const [red, blue] = mainEvent.fighters
+  const progress = mockProgress(locked ? -secondsLeft : 0)
+  const live = phase !== 'betting'
+  const [callout, setCallout] = useState<{ key: number; text: string; color: string } | null>(null)
+
+  const onEvent = useCallback((e: FightEvent) => {
+    if (e.reaction !== 'hit' && e.reaction !== 'knockdown') return
+    const f = mainEvent.fighters[e.attacker]
+    setCallout({
+      key: Date.now(),
+      text: e.reaction === 'knockdown' ? 'Knockdown!' : `${MOVES[e.move].label}!`,
+      color: f.accent,
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!callout) return
+    const t = setTimeout(() => setCallout(null), 900)
+    return () => clearTimeout(t)
+  }, [callout])
 
   return (
     <section aria-labelledby="octagon-title">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div className="min-w-0">
-          <p className="label flex flex-wrap items-center gap-x-3 text-[11px] text-mute" style={{ letterSpacing: '0.2em' }}>
+          <p className="label flex flex-wrap items-center gap-x-3 text-mute">
             <span className="bg-red px-1.5 text-night">Main event</span>
             <span className="text-blue">{mainEvent.weightClass}</span>
-            <span>R{String(mainEvent.roundId).padStart(3, '0')} · {mainEvent.arena}</span>
+            <span>
+              R{String(mainEvent.roundId).padStart(3, '0')} · {mainEvent.arena}
+            </span>
           </p>
-          <h1 id="octagon-title" className="mt-2 text-2xl leading-none sm:text-3xl">
+          <h1 id="octagon-title" className="steel mt-1.5 text-2xl uppercase leading-tight sm:text-3xl">
             <span style={{ color: red.accent }}>{red.name}</span>
             <span className="text-mute"> vs </span>
             <span style={{ color: blue.accent }}>{blue.name}</span>
-            <span className="text-mute"> · </span>
-            {mainEvent.task}
+            <span className="font-body text-lg font-normal normal-case tracking-normal text-mute [text-shadow:none] sm:text-xl"> · {mainEvent.task}</span>
           </h1>
         </div>
-        <dl className="flex shrink-0 gap-6 font-pixel">
+        <dl className="flex shrink-0 gap-6 font-display">
           <div>
-            <dt className="label text-[10px] text-mute">{locked ? 'Status' : 'Bell in'}</dt>
-            <dd className={`text-2xl tabular-nums ${locked || urgent ? 'text-red' : 'text-ink'}`}>
-              {locked ? 'LIVE' : formatClock(secondsLeft)}
+            <dt className="label text-mute">{locked ? 'Status' : 'Bell in'}</dt>
+            <dd className={`text-3xl font-bold tabular-nums ${locked || urgent ? 'text-red' : 'text-ink'}`}>
+              {phase === 'rest' ? 'BREAK' : locked ? 'LIVE' : formatClock(secondsLeft)}
             </dd>
           </div>
           <div>
-            <dt className="label text-[10px] text-mute">Pool</dt>
-            <dd className="text-2xl tabular-nums text-gold">{total.toFixed(2)}</dd>
+            <dt className="label text-mute">Pool</dt>
+            <dd className="text-3xl font-bold tabular-nums text-gold">{total.toFixed(2)}</dd>
           </div>
         </dl>
       </div>
 
-      <div className="mt-3 flex gap-[3px]" aria-hidden>
-        {Array.from({ length: SEGMENTS }, (_, i) => (
-          <span key={i} className={`h-1.5 flex-1 ${i < filled ? (urgent ? 'bg-red' : 'bg-gold') : 'bg-well'}`} />
-        ))}
+      <div className="mt-3 h-1 bg-well" aria-hidden>
+        <div
+          className={`h-full transition-[width] duration-1000 ease-linear ${urgent ? 'bg-red shadow-[0_0_12px_rgb(255_77_77/0.8)]' : 'bg-gold shadow-[0_0_12px_rgb(255_201_74/0.6)]'}`}
+          style={{ width: `${remaining * 100}%` }}
+        />
       </div>
 
-      <div className="panel relative mx-auto mt-3 overflow-hidden p-0" style={{ width: 'min(100%, calc((100vh - 230px) * 2))' }}>
-        <canvas
-          ref={canvasRef}
-          width={W}
-          height={H}
-          role="img"
-          aria-label={`The octagon: ${red.name} in the red corner, ${blue.name} in the blue corner`}
-          onClick={(e) => {
-            const i = hitTest(e)
-            if (i !== null && !locked) onSelect(i)
-          }}
-          onMouseMove={(e) => setHovered(locked ? null : hitTest(e))}
-          onMouseLeave={() => setHovered(null)}
-          className={`pixelated block aspect-[2/1] w-full ${hovered !== null ? 'cursor-pointer' : ''}`}
-        />
-        {locked && (
-          <p className="pop chroma pointer-events-none absolute left-1/2 top-[8%] font-pixel text-4xl font-bold uppercase text-ink sm:text-7xl">
-            Fight!
+      <div
+        className="panel relative mx-auto mt-3 aspect-[2/1] overflow-hidden p-0"
+        style={{ width: 'min(100%, calc((100vh - 230px) * 2))' }}
+        role="img"
+        aria-label={`The ring: ${red.name} in the red corner, ${blue.name} in the blue corner. Click a robot to back it.`}
+      >
+        <Suspense fallback={<div className="grid h-full place-items-center text-mute">Loading the arena…</div>}>
+          <Arena selected={selected} phase={phase} onSelect={onSelect} onEvent={onEvent} />
+        </Suspense>
+
+        {/* broadcast HUD */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-black/70 to-transparent p-3 sm:p-5">
+          {mainEvent.fighters.map((f, i) => (
+            <div key={f.id} className={`w-[42%] max-w-sm ${i === 1 ? 'text-right' : ''}`}>
+              <p className="label text-[11px]" style={{ color: i === 0 ? 'var(--color-red)' : 'var(--color-blue)' }}>
+                {i === 0 ? 'Red corner' : 'Blue corner'}
+              </p>
+              <p className="steel text-xl uppercase leading-none sm:text-3xl" style={{ color: f.accent }}>
+                {f.name}
+              </p>
+              <p className="hidden text-sm text-ink/70 sm:block">{brands[f.brand].label}</p>
+              {live && (
+                <>
+                  <div className={`mt-2 h-1.5 skew-x-[-20deg] bg-white/10 ${i === 1 ? 'ml-auto' : ''}`} aria-hidden>
+                    <div
+                      className={`h-full transition-[width] duration-500 ${i === 1 ? 'ml-auto' : ''}`}
+                      style={{ width: `${progress[i] * 100}%`, background: brands[f.brand].glow, boxShadow: `0 0 10px ${brands[f.brand].glow}` }}
+                    />
+                  </div>
+                  <p className="label mt-1 text-[10px] text-ink/60">Task progress {Math.round(progress[i] * 100)}%</p>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {callout && (
+          <p
+            key={callout.key}
+            className="pop steel pointer-events-none absolute left-1/2 top-[38%] whitespace-nowrap text-5xl uppercase sm:text-7xl"
+            style={{ color: callout.color, textShadow: '0 4px 24px rgb(0 0 0 / 0.8)' }}
+          >
+            {callout.text}
           </p>
         )}
+        {phase === 'fighting' && !callout && (
+          <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 label text-ink/70">Live · voting opens after the bell</p>
+        )}
+        {phase === 'rest' && (
+          <div className="pop pointer-events-none absolute left-1/2 top-[40%] text-center">
+            <p className="steel text-4xl uppercase sm:text-6xl">End of round</p>
+            <p className="label mt-2 text-cyan-300">Fighters to their corners · voting opens</p>
+          </div>
+        )}
+        {!locked && <p className="label pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 text-ink/70">Click a robot to back it</p>}
       </div>
     </section>
   )

@@ -10,8 +10,9 @@ export function TopBar({ balance }: { balance: number }) {
   return (
     <header className="relative z-40 mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-3 px-4">
       <div className="flex items-center gap-6">
-        <NavLink to="/" className="chroma font-pixel text-lg font-bold uppercase tracking-wider" aria-label="Fight Club home">
-          Fight Club
+        <NavLink to="/" className="flex items-baseline gap-2" aria-label="WAB, World Agent Boxing, home">
+          <span className="steel text-2xl">WAB</span>
+          <span className="label hidden text-[10px] text-mute lg:inline">World Agent Boxing</span>
         </NavLink>
         <nav aria-label="Main" className="flex gap-4">
           {links.map((l) => (
@@ -33,12 +34,12 @@ export function TopBar({ balance }: { balance: number }) {
           <span className="blink h-2 w-2 bg-red" aria-hidden />
           {mainEvent.watching.toLocaleString()} ringside
         </span>
-        <span className="hidden border-2 border-line px-3 py-1 font-pixel tabular-nums sm:inline">
+        <span className="hidden border-2 border-line px-3 py-1 font-display tabular-nums sm:inline">
           <span className="text-gold">◆</span> {balance.toFixed(2)} <span className="text-mute">MON</span>
         </span>
         <button
           type="button"
-          className="btn-pixel min-h-11 cursor-pointer bg-ink px-4 font-pixel font-bold uppercase tracking-widest text-night hover:bg-gold"
+          className="btn-pixel min-h-11 cursor-pointer bg-ink px-4 font-display font-bold uppercase tracking-widest text-night hover:bg-gold"
         >
           Sign in
         </button>

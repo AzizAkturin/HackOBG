@@ -46,7 +46,7 @@ export function FightCard({ secondsLeft, locked }: { secondsLeft: number; locked
           const st = statusText[r.status]
           return (
             <li key={r.roundId} className={`flex items-center gap-3 py-3 ${r.current ? '-mx-2 bg-well px-2' : ''}`}>
-              <span className="w-14 shrink-0 font-pixel text-xl tracking-widest" style={{ color: classColor[r.weightClass] }}>
+              <span className="w-14 shrink-0 font-display text-xl tracking-widest" style={{ color: classColor[r.weightClass] }}>
                 R{String(r.roundId).padStart(3, '0')}
               </span>
               <div className="min-w-0 flex-1">

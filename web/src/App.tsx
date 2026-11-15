@@ -30,7 +30,7 @@ export default function App() {
 
       <div aria-live="polite" className="pointer-events-none fixed bottom-6 left-1/2 z-50">
         {toast && (
-          <p className="pop btn-pixel whitespace-nowrap bg-green px-5 py-3 font-pixel font-bold uppercase tracking-widest text-night">
+          <p className="pop btn-pixel whitespace-nowrap bg-green px-5 py-3 font-display font-bold uppercase tracking-widest text-night">
             ✓ {toast}
           </p>
         )}

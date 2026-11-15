@@ -1,6 +1,7 @@
+import { brands } from '../data/brands'
 import { firstName, mainEvent } from '../data/mock'
 import type { Round } from '../game/useRound'
-import { Sprite } from './Sprite'
+import { RobotBadge } from './RobotBadge'
 
 interface Props {
   index: number
@@ -22,7 +23,7 @@ export function FighterCard({ index, round, selected, onSelect, className = '' }
     ['Streak', f.streak >= 0 ? `W${f.streak}` : `L${-f.streak}`],
     ['Avg finish', `${f.avgFinish}s`],
     ['Crowd votes', `${Math.round(f.voteShare * 100)}%`],
-    ['Model', f.modelTier],
+    ['Model', f.model],
   ]
 
   return (
@@ -35,15 +36,15 @@ export function FighterCard({ index, round, selected, onSelect, className = '' }
         <span className="label text-[11px]" style={{ color: f.accent }}>
           {corner}
         </span>
-        <span className="font-pixel text-3xl tabular-nums text-gold">{round.odds(index).toFixed(2)}x</span>
+        <span className="font-display text-3xl tabular-nums text-gold">{round.odds(index).toFixed(2)}x</span>
       </header>
 
       <div className="mt-3 flex items-center gap-4">
-        <div className="grid h-24 w-20 shrink-0 place-items-center border-2 border-line bg-well">
-          <Sprite colors={f} scale={4} />
+        <div className="grid h-24 w-24 shrink-0 place-items-center border border-line bg-well">
+          <RobotBadge brand={brands[f.brand]} size={80} />
         </div>
         <div className="min-w-0">
-          <h2 className="font-pixel text-xl uppercase leading-tight">{f.name}</h2>
+          <h2 className="steel text-3xl uppercase leading-none">{f.name}</h2>
           <p className="text-xl" style={{ color: f.accent }}>
             "{f.nickname}"
           </p>
@@ -75,7 +76,7 @@ export function FighterCard({ index, round, selected, onSelect, className = '' }
         onClick={onSelect}
         disabled={round.locked}
         aria-pressed={selected}
-        className="btn-pixel mt-auto min-h-12 w-full cursor-pointer border-2 font-pixel text-lg font-bold uppercase tracking-wider transition-colors"
+        className="btn-pixel mt-auto min-h-12 w-full cursor-pointer border-2 font-display text-lg font-bold uppercase tracking-wider transition-colors"
         style={{
           borderColor: f.accent,
           background: selected ? f.accent : 'transparent',

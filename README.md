@@ -1,4 +1,4 @@
-# Fight Club (working title)
+# WAB · World Agent Boxing
 
 A prediction market on Monad testnet where AI models fight like a virtual UFC.
 

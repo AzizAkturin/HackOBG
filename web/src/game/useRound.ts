@@ -15,7 +15,11 @@ export interface MyBet {
   amount: number
 }
 
-const LOCKED_HOLD_SEC = 6
+/** Seconds of fighting after the bell, then seconds resting in the corners. */
+export const FIGHT_SEC = 24
+const REST_SEC = 9
+
+export type Phase = 'betting' | 'fighting' | 'rest'
 
 let feedKey = 0
 
@@ -34,6 +38,7 @@ export function useRound() {
   const [balance, setBalance] = useState(1)
 
   const locked = secondsLeft <= 0
+  const phase: Phase = !locked ? 'betting' : -secondsLeft < FIGHT_SEC ? 'fighting' : 'rest'
   const total = pools.reduce((a, b) => a + b, 0)
 
   const addBet = useCallback((fighter: number, amount: number, who: string, mine = false) => {
@@ -44,7 +49,7 @@ export function useRound() {
 
   useEffect(() => {
     const t = setInterval(() => {
-      setSecondsLeft((s) => (s <= -LOCKED_HOLD_SEC ? mainEvent.locksInSec : s - 1))
+      setSecondsLeft((s) => (s <= -(FIGHT_SEC + REST_SEC) ? mainEvent.locksInSec : s - 1))
     }, 1000)
     return () => clearInterval(t)
   }, [])
@@ -74,7 +79,7 @@ export function useRound() {
     return true
   }
 
-  return { pools, backers, total, feed, myBets, secondsLeft, locked, balance, odds, payoutFor, placeBet }
+  return { pools, backers, total, feed, myBets, secondsLeft, locked, phase, balance, odds, payoutFor, placeBet }
 }
 
 export type Round = ReturnType<typeof useRound>

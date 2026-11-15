@@ -35,13 +35,13 @@ export function BetSlip({ round, selected, onPlaced, className = '' }: Props) {
 
   return (
     <form onSubmit={submit} aria-labelledby="slip-title" className={`panel flex flex-col p-5 ${className}`}>
-      <p className="chroma text-center font-pixel text-5xl font-bold" aria-hidden>
+      <p className="steel text-center text-6xl text-ink" aria-hidden>
         VS
       </p>
       <h2 id="slip-title" className="label mt-3 scroll-mt-24 text-center text-[11px] text-mute">
         Your bet
       </h2>
-      <p className="mt-1 text-center font-pixel text-xl uppercase" style={{ color: fighter?.accent }}>
+      <p className="mt-1 text-center font-display text-xl uppercase" style={{ color: fighter?.accent }}>
         {fighter ? fighter.name : <span className="text-mute">Pick a corner</span>}
       </p>
 
@@ -56,7 +56,7 @@ export function BetSlip({ round, selected, onPlaced, className = '' }: Props) {
         onChange={(e) => setRaw(e.target.value.replace(',', '.'))}
         aria-invalid={!!error}
         aria-describedby="stake-help"
-        className="mt-2 w-full border-2 border-line bg-night px-3 py-2 font-pixel text-2xl tabular-nums tracking-widest outline-none focus:border-gold"
+        className="mt-2 w-full border-2 border-line bg-night px-3 py-2 font-display text-2xl tabular-nums tracking-widest outline-none focus:border-gold"
       />
       <p id="stake-help" className={`mt-1 text-lg ${error && raw ? 'text-red' : 'text-mute'}`} role={error ? 'alert' : undefined}>
         {error && raw ? error : `${min}–${max} · balance ${balance.toFixed(2)}`}
@@ -68,7 +68,7 @@ export function BetSlip({ round, selected, onPlaced, className = '' }: Props) {
             key={c}
             type="button"
             onClick={() => setRaw(String(c))}
-            className={`min-h-11 cursor-pointer border-2 font-pixel text-sm tabular-nums transition-colors ${
+            className={`min-h-11 cursor-pointer border-2 font-display text-sm tabular-nums transition-colors ${
               amount === c ? 'border-gold text-gold' : 'border-line text-ink hover:border-mute'
             }`}
           >
@@ -79,13 +79,13 @@ export function BetSlip({ round, selected, onPlaced, className = '' }: Props) {
 
       <div className="mt-4 flex items-baseline justify-between border-2 border-dashed border-line px-3 py-2">
         <span className="label text-[11px] text-mute">Win pays</span>
-        <span className="font-pixel text-2xl tabular-nums text-green">{payout > 0 ? payout.toFixed(3) : '---'}</span>
+        <span className="font-display text-2xl tabular-nums text-green">{payout > 0 ? payout.toFixed(3) : '---'}</span>
       </div>
 
       <button
         type="submit"
         disabled={!canBet}
-        className="btn-pixel mt-5 min-h-14 w-full cursor-pointer bg-gold font-pixel text-lg font-bold uppercase tracking-wider text-night hover:bg-ink"
+        className="btn-pixel mt-5 min-h-14 w-full cursor-pointer bg-gold font-display text-lg font-bold uppercase tracking-wider text-night hover:bg-ink"
       >
         {locked ? 'Bets locked' : fighter ? `Back ${firstName(fighter.name)} ▸` : 'Pick a corner'}
       </button>
