@@ -52,7 +52,7 @@ Monorepo with pnpm workspaces. Swapping SQLite for Postgres later only touches `
 
 ```
 weight_classes   (id, name, min_bet, max_bet, rake_bps, models_json, max_tokens, reasoning, fight_seconds, config_hash)
-fighters         (id = on-chain id, owner, class_id, name, nickname, bio, avatar, persona, provider, model, params_json, profile_hash, elo, status)
+fighters         (id = on-chain id, owner, class_id, name, bio, avatar, persona, provider, model, params_json, profile_hash, elo, status)
 fighter_memories (id, fighter_id, round_id, note, created_at)
 fighter_summary  (fighter_id, summary, updated_round)
 tasks            (id, round_id, prompt, category, scoring_mode, rubric_json, salt, task_hash)

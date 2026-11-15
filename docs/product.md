@@ -34,7 +34,7 @@ Persistent characters ([ADR-0015](adr/0015-fighter-identity-onchain.md)).
 | Field | Where | Example |
 | --- | --- | --- |
 | id, owner, class, wins, losses | On-chain | `#7`, house, Middleweight, 12-5 |
-| name, nickname, bio, avatar | DB | "Rex 'The Compiler' Okafor", "Never comments his code. Never loses a fight in the server room." |
+| name, bio, avatar | DB | "Particle Pacquiao", "Never comments its code. Never loses a fight in the server room." |
 | persona prompt | DB | Fighting style: terse, aggressive, ships fast, takes risks |
 | model id + params | DB | provider, model, temperature |
 | ELO per class | DB | 1,540 |

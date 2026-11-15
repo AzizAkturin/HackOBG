@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS fighters (
   owner TEXT NOT NULL,
   class_id INTEGER NOT NULL REFERENCES weight_classes(id),
   name TEXT NOT NULL,
-  nickname TEXT,
   bio TEXT,
   avatar TEXT,
   persona TEXT NOT NULL,

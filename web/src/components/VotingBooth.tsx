@@ -4,6 +4,16 @@ import { VOTE_SEC, type Round } from '../game/useRound'
 
 const letter = (label: number) => String.fromCharCode(65 + label)
 
+const FADE_STOPS = [140, 52, 30, 2]
+
+function timerColor(elapsed: number) {
+  const t = Math.min(1, Math.max(0, (elapsed - 0.6) / 0.4))
+  const pos = t * (FADE_STOPS.length - 1)
+  const i = Math.min(FADE_STOPS.length - 2, Math.floor(pos))
+  const hue = FADE_STOPS[i] + (FADE_STOPS[i + 1] - FADE_STOPS[i]) * (pos - i)
+  return `hsl(${hue} 80% 45%)`
+}
+
 function OutputBody({ output }: { output: Output }) {
   if (output.kind === 'image') {
     return <img src={output.src} alt={output.alt} className="aspect-square w-full border border-line bg-well object-contain" />
@@ -49,8 +59,11 @@ export function VotingBooth({ round }: { round: Round }) {
       {!revealed && (
         <div className="mt-3 h-1 bg-well" aria-hidden>
           <div
-            className="h-full bg-gold transition-[width] duration-1000 ease-linear"
-            style={{ width: `${(Math.max(0, voteSecondsLeft) / VOTE_SEC) * 100}%` }}
+            className="h-full transition-[width,background-color] duration-1000 ease-linear"
+            style={{
+              width: `${(Math.max(0, voteSecondsLeft) / VOTE_SEC) * 100}%`,
+              backgroundColor: timerColor(1 - Math.max(0, voteSecondsLeft) / VOTE_SEC),
+            }}
           />
         </div>
       )}
