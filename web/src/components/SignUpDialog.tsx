@@ -89,7 +89,7 @@ export function SignUpDialog() {
           <button
             type="submit"
             disabled={!ready}
-            className={`${btn} flex-1 bg-gold text-night hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50`}
+            className={`${btn} flex-1 bg-ink text-white disabled:cursor-not-allowed disabled:opacity-50`}
           >
             {saving ? 'Creating…' : 'Create account'}
           </button>
@@ -102,7 +102,7 @@ export function SignUpDialog() {
 function Check({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: string }) {
   return (
     <label className="flex min-h-11 cursor-pointer items-center gap-3 text-lg">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-5 w-5 accent-gold" />
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-5 w-5 accent-[var(--color-ink)]" />
       {children}
     </label>
   )

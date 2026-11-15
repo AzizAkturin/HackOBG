@@ -1,19 +1,19 @@
 import { useCallback, useState } from 'react'
 import { FighterCard } from '../components/FighterCard'
+import { LiveTrades } from '../components/LiveTrades'
 import { MarketChart } from '../components/MarketChart'
 import { Octagon } from '../components/Octagon'
 import { RoundDesk } from '../components/RoundDesk'
 import { StageTracker } from '../components/StageTracker'
 import { TradeTicket } from '../components/TradeTicket'
 import { mainEvent, roundLabel } from '../data/mock'
-import { useMatch, type Side } from '../game/useMatch'
+import type { Match, Side } from '../game/useMatch'
 
 /**
  * One page for the whole match: stage tracker on top, the ring with the round desk (fight status,
  * inline voting, round results) on the left, the live market and trade ticket on the right.
  */
-export function FightPage({ onPlaced }: { onPlaced: (msg: string) => void }) {
-  const match = useMatch()
+export function FightPage({ match, onPlaced }: { match: Match; onPlaced: (msg: string) => void }) {
   const [side, setSide] = useState<Side>(0)
   const [red, blue] = mainEvent.fighters
 
@@ -42,17 +42,18 @@ export function FightPage({ onPlaced }: { onPlaced: (msg: string) => void }) {
         <StageTracker match={match} />
       </div>
 
-      <div className="mt-4 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="mt-4 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="min-w-0 space-y-4">
           <Octagon match={match} selected={side} onSelect={pick} />
           <RoundDesk match={match} />
         </div>
-        <MarketChart fighters={[{ name: red.name }, { name: blue.name }]} history={match.history} sample compact className="lg:sticky lg:top-[96px]">
+        <MarketChart fighters={[{ name: red.name }, { name: blue.name }]} history={match.history} sample compact className="min-w-0 lg:sticky lg:top-[96px]">
           <TradeTicket match={match} side={side} onSide={setSide} onDone={onPlaced} />
+          <LiveTrades match={match} />
         </MarketChart>
       </div>
 
-      <div className="mt-5 grid gap-5 md:grid-cols-2">
+      <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
         <FighterCard index={0} match={match} selected={side === 0} onSelect={() => pick(0)} />
         <FighterCard index={1} match={match} selected={side === 1} onSelect={() => pick(1)} />
       </div>

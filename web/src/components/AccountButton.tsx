@@ -92,7 +92,7 @@ export function AccountButton() {
             role="menuitem"
             to={`/u/${auth.user.username}`}
             onClick={() => setMenuOpen(false)}
-            className="label flex min-h-11 w-full items-center px-2 text-left text-[11px] hover:text-gold"
+            className="label flex min-h-11 w-full items-center px-2 text-left text-[11px] hover:bg-well hover:text-ink"
           >
             My profile
           </Link>
@@ -103,7 +103,7 @@ export function AccountButton() {
               setMenuOpen(false)
               setEditOpen(true)
             }}
-            className="label flex min-h-11 w-full cursor-pointer items-center px-2 text-left text-[11px] hover:text-gold"
+            className="label flex min-h-11 w-full cursor-pointer items-center px-2 text-left text-[11px] hover:bg-well hover:text-ink"
           >
             Edit profile
           </button>

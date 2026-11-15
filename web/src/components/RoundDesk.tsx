@@ -77,19 +77,23 @@ function Fighting({ match }: { match: Match }) {
   const r = ROUNDS[match.roundIndex]!
   return (
     <>
-      <DeskHeader kicker={`Round ${match.roundIndex + 1} of 3 · Fighting`} title={r.name} clockLabel="Voting opens in" seconds={match.secondsLeft} />
-      <p className="mt-2 text-lg text-ink">{r.brief}</p>
+      <DeskHeader
+        kicker={`Round ${match.roundIndex + 1} of 3 · Live`}
+        title={r.name}
+        clockLabel="Voting opens in"
+        seconds={match.secondsLeft}
+      />
       <p className="mt-1 text-base text-mute">
-        Both robots are writing now. Trading is closed until the vote is in.
-        {match.holds ? ' You hold shares, so you get a vote.' : ' Only people holding shares can vote this round.'}
+        {r.brief} Pitches are shuffled into A and B, so you judge the work, not the robot. Trading is closed until the vote is in.
       </p>
+      <PitchCards match={match} />
     </>
   )
 }
 
 function Voting({ match }: { match: Match }) {
   const r = ROUNDS[match.roundIndex]!
-  const { swapped, votes, myVote } = match.voting
+  const { votes } = match.voting
   const cast = votes[0] + votes[1]
   return (
     <>
@@ -104,33 +108,66 @@ function Voting({ match }: { match: Match }) {
         <div className="h-full bg-blue transition-[width] duration-300 ease-linear" style={{ width: `${(match.secondsLeft / SEC.vote) * 100}%` }} />
       </div>
       <p className="mt-2 text-base text-mute">
-        Robots are hidden until voting closes. {cast} {cast === 1 ? 'vote' : 'votes'} cast.
+        Robots stay hidden until voting closes · {cast} {cast === 1 ? 'vote' : 'votes'} cast
+        {!match.holds && ' · only position holders can vote'}
       </p>
+      <PitchCards match={match} voting />
+    </>
+  )
+}
 
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        {[0, 1].map((label) => {
-          const mine = myVote === label
-          const text = submissions[r.key][fighterOf(label, swapped)]
-          return (
-            <article key={label} aria-label={`Pitch ${letter(label)}`} className={`flex flex-col border-2 p-4 ${mine ? 'border-blue' : 'border-line'}`}>
+/**
+ * The two blind pitches. While robots fight they type out live (both at the same pace, so timing can't
+ * reveal who is who); when voting opens the same cards get vote buttons.
+ */
+function PitchCards({ match, voting = false }: { match: Match; voting?: boolean }) {
+  const r = ROUNDS[match.roundIndex]!
+  const { swapped, myVote } = match.voting
+  return (
+    <div className="mt-3 grid gap-3 md:grid-cols-2">
+      {[0, 1].map((label) => {
+        const full = submissions[r.key][fighterOf(label, swapped)]
+        const shown = voting ? full : full.slice(0, Math.round(full.length * match.writing))
+        const writing = !voting && shown.length < full.length
+        const words = shown.trim() ? shown.trim().split(/\s+/).length : 0
+        const mine = myVote === label
+        return (
+          <article key={label} aria-label={`Pitch ${letter(label)}`} className={`flex flex-col border-2 p-4 ${mine ? 'border-blue' : 'border-line'}`}>
+            <header className="flex items-baseline justify-between gap-2">
               <h3 className="font-display text-xl font-bold uppercase">Pitch {letter(label)}</h3>
-              <p className="mt-2 max-h-56 overflow-y-auto whitespace-pre-line pr-1 text-base leading-relaxed text-ink">{text}</p>
+              <span className="text-sm tabular-nums text-mute">
+                {writing ? (
+                  <>
+                    <span className="blink mr-1.5 inline-block h-2 w-2 rounded-full bg-red align-middle" aria-hidden />
+                    writing · {words} words
+                  </>
+                ) : (
+                  `${words} words`
+                )}
+              </span>
+            </header>
+            <p
+              className="mt-2 h-48 overflow-y-auto whitespace-pre-line pr-1 text-base leading-relaxed text-ink"
+              aria-busy={writing}
+            >
+              {shown}
+              {writing && <span className="blink ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[3px] bg-ink" aria-hidden />}
+            </p>
+            {voting && (
               <button
                 type="button"
                 onClick={() => match.vote(label)}
                 disabled={myVote !== null || !match.holds}
                 aria-pressed={mine}
-                className="btn-pixel mt-auto min-h-12 w-full cursor-pointer bg-blue font-display text-lg font-bold uppercase tracking-wider text-white disabled:cursor-not-allowed"
-                style={{ marginTop: '1rem' }}
+                className="btn-pixel mt-4 min-h-12 w-full cursor-pointer bg-blue font-display text-lg font-bold uppercase tracking-wider text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {mine ? '✓ Your vote' : myVote !== null ? 'Vote cast' : `Vote ${letter(label)}`}
+                {mine ? '✓ Your vote' : myVote !== null ? 'Vote cast' : !match.holds ? 'Hold shares to vote' : `Vote ${letter(label)}`}
               </button>
-            </article>
-          )
-        })}
-      </div>
-      {!match.holds && <p className="mt-2 text-base text-mute">Voting is for position holders. Buy any amount when trading reopens to vote next round.</p>}
-    </>
+            )}
+          </article>
+        )
+      })}
+    </div>
   )
 }
 

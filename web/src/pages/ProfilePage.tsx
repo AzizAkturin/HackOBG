@@ -26,7 +26,7 @@ export function MyProfileRoute() {
       <section className="panel mt-6 flex flex-col items-center gap-4 p-10 text-center">
         <h1 className="steel text-4xl">Your profile</h1>
         <p className="max-w-md text-lg text-mute">Sign in with your wallet to see your profile. New here? Signing in starts the sign-up.</p>
-        <button type="button" onClick={auth.signIn} className={`${btn} bg-gold text-night hover:bg-ink`}>
+        <button type="button" onClick={auth.signIn} className={`${btn} bg-ink text-white`}>
           Sign in
         </button>
       </section>
@@ -90,7 +90,7 @@ export function ProfilePage() {
               <p className="text-lg text-red">{failed.message}</p>
             </>
           )}
-          <Link to="/" className="label mt-2 flex min-h-11 items-center text-[11px] text-gold hover:underline">
+          <Link to="/" className="label mt-2 flex min-h-11 items-center text-[11px] text-blue hover:underline">
             ◂ Back to the ring
           </Link>
         </section>
@@ -113,7 +113,7 @@ export function ProfilePage() {
 
   return (
     <main className="mx-auto max-w-[1000px] px-4 pb-12">
-      <Link to="/" className="label flex min-h-11 items-center text-[11px] text-gold hover:underline">
+      <Link to="/" className="label flex min-h-11 items-center text-[11px] text-blue hover:underline">
         ◂ Back to the ring
       </Link>
 
@@ -126,7 +126,7 @@ export function ProfilePage() {
             <h1 id="profile-name" className="steel break-all text-4xl sm:text-5xl">
               {user.username}
             </h1>
-            {isMe && <span className="label border-2 border-gold px-2 py-0.5 text-[10px] text-gold">You</span>}
+            {isMe && <span className="label border-2 border-ink px-2 py-0.5 text-[10px] text-ink">You</span>}
           </div>
           <p className="mt-1 text-lg text-mute">In the club since {joined(user.createdAt)}</p>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -140,7 +140,7 @@ export function ProfilePage() {
               href={`${EXPLORER_URL}/address/${user.address}`}
               target="_blank"
               rel="noreferrer"
-              className="label flex min-h-11 items-center text-[11px] text-gold hover:underline"
+              className="label flex min-h-11 items-center text-[11px] text-blue hover:underline"
             >
               MonadVision ↗
             </a>
@@ -148,7 +148,7 @@ export function ProfilePage() {
         </div>
         {isMe && (
           <div className="flex gap-3 sm:flex-col">
-            <button type="button" onClick={() => setEditing(true)} className={`${btn} flex-1 justify-center bg-ink text-night hover:bg-gold`}>
+            <button type="button" onClick={() => setEditing(true)} className={`${btn} flex-1 justify-center bg-ink text-white`}>
               Edit profile
             </button>
             <button
@@ -179,7 +179,7 @@ export function ProfilePage() {
             {isMe ? 'No bets yet. Back a fighter in the ring and your record shows up here.' : `${user.username} hasn't placed a bet yet.`}
           </p>
           {isMe && (
-            <Link to="/" className={`${btn} mt-4 w-fit bg-gold text-night hover:bg-ink`}>
+            <Link to="/" className={`${btn} mt-4 w-fit bg-ink text-white`}>
               Go to the ring
             </Link>
           )}

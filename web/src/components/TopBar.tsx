@@ -5,6 +5,7 @@ import { formatClock, mainEvent, otherFights, roundLabel, type FightStatus } fro
 import { useAuth } from '../wallet/AuthProvider'
 import { chain } from '../wallet/config'
 import { AccountButton } from './AccountButton'
+import type { Match } from '../game/useMatch'
 
 const links = [
   { to: '/', label: 'Fightcenter' },
@@ -17,24 +18,26 @@ const statusLabel: Record<FightStatus, string> = {
   upcoming: 'Upcoming',
 }
 
-const scores = [
-  {
-    roundId: mainEvent.roundId,
-    meta: mainEvent.weightClass,
-    status: 'Live',
-    live: true,
-    rows: mainEvent.fighters.map((f) => ({ name: f.name, record: `${f.record[0]}-${f.record[1]}` })),
-  },
-  ...otherFights.map((f) => ({
-    roundId: f.roundId,
-    meta: f.weightClass,
-    status: f.status === 'upcoming' && f.startsInSec ? `In ${formatClock(f.startsInSec)}` : statusLabel[f.status],
-    live: f.status === 'fighting',
-    rows: [{ name: f.task, record: '' }],
-  })),
-]
+const others = otherFights.map((f) => ({
+  roundId: f.roundId,
+  meta: f.weightClass,
+  status: f.status === 'upcoming' && f.startsInSec ? `In ${formatClock(f.startsInSec)}` : statusLabel[f.status],
+  live: f.status === 'fighting',
+  rows: [{ name: f.task, record: '' }],
+}))
 
-export function TopBar() {
+export function TopBar({ match }: { match: Match }) {
+  // the main event tile follows the live match: stage in the status, round wins as the score
+  const scores = [
+    {
+      roundId: mainEvent.roundId,
+      meta: mainEvent.weightClass,
+      status: match.phase === 'final' ? 'Final' : match.phase === 'trading' ? 'Trading' : match.phase === 'voting' ? 'Voting' : 'Live',
+      live: match.phase === 'fighting',
+      rows: mainEvent.fighters.map((f, i) => ({ name: f.name, record: String(match.wins[i]) })),
+    },
+    ...others,
+  ]
   const { user } = useAuth()
   // Real wallet balance, shown only when signed in.
   const bal = useBalance({ address: user?.address, chainId: chain.id, query: { enabled: !!user, refetchInterval: 15_000 } })

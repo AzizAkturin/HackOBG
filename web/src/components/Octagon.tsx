@@ -3,7 +3,7 @@ import { brands } from '../data/brands'
 import { mainEvent } from '../data/mock'
 import { ROUNDS } from '../data/matchContent'
 import type { Match } from '../game/useMatch'
-import type { Phase as ArenaPhase } from '../game/useRound'
+import type { Phase as ArenaPhase } from '../game/arenaPhase'
 import type { FightEvent } from '../three/director'
 import { MOVES } from '../three/moves'
 

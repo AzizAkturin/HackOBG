@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Route, Routes } from 'react-router'
 import { TopBar } from './components/TopBar'
-import { useRound } from './game/useRound'
+import { useMatch } from './game/useMatch'
 import { FightPage } from './pages/FightPage'
 import { GaragePage } from './pages/GaragePage'
 import { MyProfileRoute, ProfilePage } from './pages/ProfilePage'
 import { StatsPage } from './pages/StatsPage'
 
 export default function App() {
-  const round = useRound()
+  // One live match for the whole app, so the fight page, rankings and scoreboard always agree.
+  const match = useMatch()
   const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
@@ -19,11 +20,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <TopBar />
+      <TopBar match={match} />
 
       <Routes>
-        <Route path="/" element={<FightPage onPlaced={setToast} />} />
-        <Route path="/stats" element={<StatsPage round={round} />} />
+        <Route path="/" element={<FightPage match={match} onPlaced={setToast} />} />
+        <Route path="/stats" element={<StatsPage match={match} />} />
         <Route path="/garage" element={<GaragePage />} />
         <Route path="/me" element={<MyProfileRoute />} />
         <Route path="/u/:id" element={<ProfilePage />} />

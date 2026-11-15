@@ -33,7 +33,7 @@ export type RoundResult = {
   priceAfter: number
 }
 
-export type FeedItem = { key: number; who: string; side: Side; isBuy: boolean; mon: number; mine?: boolean }
+export type FeedItem = { key: number; at: number; who: string; side: Side; isBuy: boolean; mon: number; priceA: number; mine?: boolean }
 
 type Position = { shares: [number, number]; cost: [number, number]; firstAt: [number | null, number | null]; firstPrice: [number, number] }
 
@@ -104,17 +104,21 @@ function fresh(now: number, balance = 1): State {
 }
 
 const closeSpan = (spans: StageSpan[], t: number) => spans.map((s, i) => (i === spans.length - 1 ? { ...s, to: t } : s))
-const pushFeed = (feed: FeedItem[], item: Omit<FeedItem, 'key'>) => [{ ...item, key: ++feedKey }, ...feed].slice(0, 6)
+const pushFeed = (feed: FeedItem[], item: Omit<FeedItem, 'key'>) => [{ ...item, key: ++feedKey }, ...feed].slice(0, 12)
 
 function advance(s: State, now: number, r: [number, number]): State {
   const round = s.results.length
   switch (s.phase) {
     case 'trading':
+      // The blind shuffle is fixed when the fight starts, so live writing and the vote use the same labels.
       return {
         ...s,
         phase: 'fighting',
         endsAt: now + ms(SEC.fight),
         phaseLen: SEC.fight,
+        swapped: r[0] < 0.5,
+        votes: [0, 0],
+        myVote: null,
         spans: [...closeSpan(s.spans, now), { stage: round + 2, label: ROUNDS[round]!.name, from: now, to: Infinity, trading: false }],
       }
     case 'fighting':
@@ -123,9 +127,6 @@ function advance(s: State, now: number, r: [number, number]): State {
         phase: 'voting',
         endsAt: now + ms(SEC.vote),
         phaseLen: SEC.vote,
-        swapped: r[0] < 0.5,
-        votes: [0, 0],
-        myVote: null,
         favored: r[1] < 0.5 ? 0 : 1,
       }
     case 'voting': {
@@ -177,7 +178,7 @@ function reducer(s: State, a: Action): State {
         ...s,
         market: m,
         points: [...s.points, { t: s.now, priceA: priceA(m) }],
-        feed: pushFeed(s.feed, { who: a.who, side: a.side, isBuy: !a.sell, mon: a.mon }),
+        feed: pushFeed(s.feed, { at: s.now, who: a.who, side: a.side, isBuy: !a.sell, mon: a.mon, priceA: priceA(m) }),
       }
     }
     case 'crowdVote': {
@@ -205,7 +206,7 @@ function reducer(s: State, a: Action): State {
         pos,
         balance: s.balance - a.mon,
         points: [...s.points, { t: s.now, priceA: priceA(market) }],
-        feed: pushFeed(s.feed, { who: 'You', side: a.side, isBuy: true, mon: a.mon, mine: true }),
+        feed: pushFeed(s.feed, { at: s.now, who: 'You', side: a.side, isBuy: true, mon: a.mon, priceA: priceA(market), mine: true }),
       }
     }
     case 'cashOut': {
@@ -225,7 +226,7 @@ function reducer(s: State, a: Action): State {
         pos,
         balance: s.balance + proceeds,
         points: [...s.points, { t: s.now, priceA: priceA(market) }],
-        feed: pushFeed(s.feed, { who: 'You', side: a.side, isBuy: false, mon: proceeds, mine: true }),
+        feed: pushFeed(s.feed, { at: s.now, who: 'You', side: a.side, isBuy: false, mon: proceeds, priceA: priceA(market), mine: true }),
       }
     }
     case 'vote': {
@@ -315,6 +316,9 @@ export function useMatch() {
     buy,
     cashOut,
     voting: { swapped: s.swapped, votes: s.votes, myVote: s.myVote },
+    /** Share of each blind pitch revealed so far: both labels advance together so pace can't identify a robot. */
+    writing: s.phase === 'fighting' ? Math.min(1, (1 - (s.endsAt - s.now) / ms(SEC.fight)) / 0.9) : s.phase === 'voting' ? 1 : 0,
+    now: s.now,
     vote,
     claimed: s.claimed,
     payout: s.payout,

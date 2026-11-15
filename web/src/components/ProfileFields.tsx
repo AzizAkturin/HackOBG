@@ -51,7 +51,7 @@ export function UsernameField({ value, onChange, check }: { value: string; onCha
         onChange={(e) => onChange(e.target.value)}
         aria-describedby="username-help"
         aria-invalid={check.state === 'bad'}
-        className="mt-2 w-full border-2 border-line bg-night px-3 py-2 font-display text-2xl tracking-wider outline-none focus:border-gold aria-invalid:border-red"
+        className="mt-2 w-full border-2 border-line bg-night px-3 py-2 font-display text-2xl tracking-wider outline-none focus:border-ink aria-invalid:border-red"
       />
       <p id="username-help" aria-live="polite" className={`mt-1 text-lg ${color}`}>
         {check.message}
@@ -70,13 +70,13 @@ export function AvatarPicker({ value, onChange }: { value: AvatarId; onChange: (
           return (
             <label
               key={a.id}
-              className={`flex cursor-pointer flex-col items-center border-2 py-2 transition-colors has-focus-visible:outline-2 has-focus-visible:outline-gold ${
-                on ? 'border-gold bg-well' : 'border-line hover:border-mute'
+              className={`flex cursor-pointer flex-col items-center border-2 py-2 transition-colors has-focus-visible:outline-2 has-focus-visible:outline-blue ${
+                on ? 'border-ink bg-well' : 'border-line hover:border-mute'
               }`}
             >
               <input type="radio" name="avatar" value={a.id} checked={on} onChange={() => onChange(a.id)} className="sr-only" />
               <RobotBadge brand={a} size={48} />
-              <span className={`label mt-1 text-[10px] ${on ? 'text-gold' : 'text-mute'}`}>{a.label}</span>
+              <span className={`label mt-1 text-[10px] ${on ? 'text-ink' : 'text-mute'}`}>{a.label}</span>
             </label>
           )
         })}

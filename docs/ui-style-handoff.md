@@ -18,12 +18,15 @@ Stack: Vite + React 19 + Tailwind CSS v4. Tokens live in `web/src/index.css` und
 | `line` | `#d4d4d4` | Borders, dividers, chart gridlines |
 | `ink` | `#121212` | Primary text, current-step marker, crosshair |
 | `mute` | `#6c6c6c` | Secondary text, kickers, axis text, "upcoming" states |
-| `red` | `#d00000` | **Red corner / fighter A**, errors, negative change (▼), urgent timers, sign-out |
-| `blue` | `#1a5fd0` | **Blue corner / fighter B**, voting actions, weight-class kicker |
+| `red` | `#d00000` | **Red corner / fighter A**, errors, negative change (▼), urgent timers, sign-out, "live" dots (broadcast convention) |
+| `blue` | `#1a5fd0` | **Blue corner / fighter B**, voting actions, **text links**, global focus ring, weight-class kicker |
 | `green` | `#1a8a4a` | Gains (▲), "pays if wins" amounts, Collect button, "name is free" |
-| `gold` | `#b86e00` | Legacy accent from the original mock (pool total, ◆ MON). Not used in the new match UI; don't spread it |
+| `gold` | `#b86e00` | **Only the ◆ MON currency glyph.** Removed from buttons, links, selection states and focus rings; don't reintroduce it |
 
 Rules:
+- **Primary button = `bg-ink text-white`.** (Gold with light text failed contrast at about 3.4:1 and was replaced everywhere.) Fighter-specific actions use the fighter's corner colour; voting uses `bg-blue`; Collect uses `bg-green`.
+- **Text links = `text-blue hover:underline`** (e.g. "◂ Back to the ring", "MonadVision ↗", "Trade ▸").
+- **Selected state = `border-ink`** (+ `bg-well` for tiles), never gold.
 - **Use tokens, never hex values**, in components. In SVG, use `var(--color-…)` (e.g. `stroke="var(--color-red)"`) so `.theme-dark` and future theme changes apply.
 - The top bar and scoreboard strip are your teammate's design and use literal hex (`#d00`, `#121212`, `#f2f2f2`). Leave them, but don't copy literal hex into new components.
 
@@ -52,6 +55,10 @@ Rules:
 4. Fighter cards: `md:grid-cols-2`.
 
 Below `lg` everything stacks in that order; the market lands right under the arena.
+
+**One shared match.** `useMatch()` runs once in `App.tsx` and is passed to the fight page, the Rankings page and the top-bar scoreboard, so every page shows the same stage, score, prices and trades. Never call `useMatch()` inside a page.
+
+**Phone-width rule (verified at 390px):** every CSS grid needs an explicit `grid-cols-1` before its breakpoint columns, and grid/flex children that hold truncated text need `min-w-0` (`Panel` has it built in). Without this the implicit grid column grows to the longest text and the page scrolls sideways; this happened on Rankings (601px) and the fight page (415px). The only intentionally horizontal-scrolling element is the scoreboard strip in the top bar.
 
 Other rules:
 - Page container: `mx-auto max-w-[1400px] px-4`. Profile page: `max-w-[1000px]`.
@@ -104,6 +111,16 @@ Built to the dataviz method (form → colour → validate → marks → hover �
 - Blind labels are "Pitch A / Pitch B". **Never show robot names, colours or avatars on a pitch before voting closes.**
 - Round result: per-fighter vote bars (2px track in the corner colour), "Name wrote Pitch X ★", and a price-move block "28% → 62%" plus ▲/▼ points in green/red.
 - Final: a box bordered in the winner's corner colour, holding the payout text and a green **Collect** button.
+
+**Live writing** (`RoundDesk.tsx` → `PitchCards`):
+- While robots fight, the two pitches **type out live under the blind labels "Pitch A / Pitch B"**, never under robot names or colours. The A/B shuffle is fixed when the fight starts, so the cards you watch are the cards you vote on.
+- **Both cards reveal at the same pace** (the share of round time elapsed), so finishing speed can't reveal which robot is which. Each shows a blinking caret, a "writing · N words" status, and a fixed-height scrolling body (`h-48`).
+- When voting opens, the same component adds the vote buttons. Don't build a separate voting view.
+
+**Live trades** (`LiveTrades.tsx`):
+- A compact table: Trader (short address, mono, or bold "You"), Trade ("bought"/"cashed out" + corner dot + name), MON, price after the trade, age.
+- Columns have a small uppercase header row and fixed widths (`w-10`, `w-9`, `w-8`) so numbers align. Your rows get a `bg-well` highlight; new rows use `.feed-in`.
+- `plain` mode drops its own heading for use inside a titled `Panel` (Rankings: "Live trades · R042").
 
 **Arena overlays** (`Octagon.tsx`):
 - **Broadcast banner** for the first ~4 s of each phase ("Round 3 · MVP", "Vote now · Pick the better pitch below ↓", "Kiln takes it"). It uses `.pop`.
@@ -165,7 +182,10 @@ Voice:
 
 ## 10. Known inconsistencies (fix when you touch them)
 
-- **Stats page** still runs the old pool simulation (`useRound`) with the old components; `BetSlip.tsx` and `VotingBooth.tsx` are unused leftovers. Move Stats to `useMatch` (or real data) and delete them.
-- `gold` still shows on legacy bits (top-bar ◆, avatar picker selection). Pick one accent for selection states (suggest `ink`) when restyling.
-- The mobile layout (< 1024px) has only been reasoned about, not screenshotted. Check the tracker's 5 columns and the 2-column ticket chips at 375px.
+Resolved in the audit: the Rankings page now uses the shared match; the old `useRound`, `BetSlip`, `VotingBooth` and `Ringside` were deleted (the arena's choreography type moved to `game/arenaPhase.ts`); gold removed from interactive states; round IDs are neutral `ink` (no weight-class red/blue); the nav and page title both say "Rankings"; phone overflow fixed.
+
+Still open:
+- **Garage page** (`/garage`, not in the nav) colours its weight-class buttons green/blue/red. Fine for a dev showcase; restyle before linking it.
+- Other matches on the fight card and scoreboard are static mock rows with no page. They show status only, no action links; don't add dead links.
+- The Profile page and dialogs were checked on desktop only; the fight and Rankings pages were checked at 390px.
 - All match data is simulated (`web/src/game/useMatch.ts`, `web/src/data/matchContent.ts`) and labelled "Sample data". When wiring real chain data, keep the `Match` interface so these components don't change.

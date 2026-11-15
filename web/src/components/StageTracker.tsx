@@ -5,7 +5,7 @@ import type { Match } from '../game/useMatch'
 const CORNER = ['var(--color-red)', 'var(--color-blue)'] as const
 
 const phaseLabel = (m: Match) =>
-  m.phase === 'fighting' ? 'Fighting' : m.phase === 'voting' ? 'Voting' : m.phase === 'final' ? 'Final' : 'Trading open'
+  m.phase === 'fighting' ? 'Fighting' : m.phase === 'voting' ? 'Voting' : m.phase === 'final' ? 'Final' : 'Trading'
 
 /** Five-stage progress: Start, three voted rounds, Result. Says what's happening now and who won what. */
 export function StageTracker({ match }: { match: Match }) {
@@ -35,7 +35,7 @@ export function StageTracker({ match }: { match: Match }) {
           </span>
         </p>
 
-        <ol className="grid min-w-0 flex-1 grid-cols-5 gap-1">
+        <ol className="grid w-full min-w-0 grid-cols-5 gap-1 sm:w-auto sm:flex-1">
           {steps.map((s) => {
             const result = s.n >= 2 && s.n <= 4 ? results[s.n - 2] : undefined
             const skipped = decidedEarly && s.n === 4
@@ -53,7 +53,7 @@ export function StageTracker({ match }: { match: Match }) {
                   <span className="hidden sm:inline">{s.n}. {s.name}</span>
                   <span className="sm:hidden">{s.short}</span>
                 </p>
-                <p className="truncate text-sm leading-tight">
+                <p className="truncate text-xs leading-tight sm:text-sm">
                   {skipped ? (
                     <span className="text-mute">Not needed</span>
                   ) : winner ? (

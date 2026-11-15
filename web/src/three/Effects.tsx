@@ -3,7 +3,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import type { Phase } from '../game/useRound'
+import type { Phase } from '../game/arenaPhase'
 import { MAT_Y, type Burst, type FightDirector } from './director'
 import { dotTexture } from './textures'
 

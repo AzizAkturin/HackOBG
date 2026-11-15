@@ -10,7 +10,7 @@ interface Props {
 
 export function Panel({ title, titleId, aside, className = '', children }: Props) {
   return (
-    <section aria-labelledby={titleId} className={`panel p-5 ${className}`}>
+    <section aria-labelledby={titleId} className={`panel min-w-0 p-5 ${className}`}>
       <header className="flex items-center justify-between gap-3 border-b border-line pb-3">
         <h2 id={titleId} className="scroll-mt-24 font-display text-xl font-bold text-ink">
           {title}

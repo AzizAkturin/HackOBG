@@ -7,7 +7,7 @@ export function TopFighters() {
       <ol className="space-y-1">
         {leaderboard.map((f) => (
           <li key={f.name} className="flex items-center gap-3 text-lg">
-            <span className={`w-5 font-display ${f.rank === 1 ? 'text-gold' : 'text-mute'}`}>{f.rank}</span>
+            <span className={`w-5 font-display ${f.rank === 1 ? 'font-bold text-ink' : 'text-mute'}`}>{f.rank}</span>
             <span className="h-3 w-3 shrink-0" style={{ background: f.accent }} aria-hidden />
             <span className="min-w-0 flex-1 truncate">{f.name}</span>
             <span className="text-mute">{f.weightClass}</span>

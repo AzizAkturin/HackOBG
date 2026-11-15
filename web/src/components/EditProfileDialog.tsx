@@ -62,7 +62,7 @@ export function EditProfileDialog({ onClose }: { onClose: () => void }) {
           <button type="button" onClick={() => ref.current?.close()} className={`${btn} flex-1 border-2 border-line text-mute hover:text-ink`}>
             Cancel
           </button>
-          <button type="submit" disabled={!ready} className={`${btn} flex-1 bg-gold text-night hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50`}>
+          <button type="submit" disabled={!ready} className={`${btn} flex-1 bg-ink text-white disabled:cursor-not-allowed disabled:opacity-50`}>
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>

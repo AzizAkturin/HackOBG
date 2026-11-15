@@ -2,7 +2,7 @@
 // defender reaction), and emits impacts for sparks, camera shake and the HUD.
 // Moves are random for now; later the live event stream drives `perform`.
 import * as THREE from 'three'
-import type { Phase } from '../game/useRound'
+import type { Phase } from '../game/arenaPhase'
 import { GUARD, MOVES, samplePose, SIT, WALK, type MoveName, type Pose } from './moves'
 
 /** Robots are modelled ~4 units tall and scaled down to stand in the cage. */
