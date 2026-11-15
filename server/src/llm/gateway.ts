@@ -36,6 +36,7 @@ export type RunFighterOptions = {
   deadlineMs: number;
   signal?: AbortSignal;
   onDelta?: (delta: Delta) => void;
+  onRetry?: (attempt: number, route: ModelRoute) => void;
   fetchImpl?: typeof fetch;
   providers?: ProviderTable;
 };
@@ -102,8 +103,18 @@ async function attemptRoute(
   let finishReason: string | undefined;
   let sawDone = false;
   let streamError: unknown;
+  let callbackError: { error: unknown } | undefined;
 
-  const fail = (reason: KoReason, detail: string, retryable: boolean): AttemptResult => ({
+  const deliver = (delta: Delta) => {
+    try {
+      opts.onDelta?.(delta);
+    } catch (error) {
+      callbackError = { error };
+      throw error;
+    }
+  };
+
+  const fail =(reason: KoReason, detail: string, retryable: boolean): AttemptResult => ({
     ok: false,
     reason,
     detail,
@@ -131,11 +142,11 @@ async function attemptRoute(
     if (chunk.finishReason) finishReason = chunk.finishReason;
     if (chunk.reasoning) {
       reasoningChars += chunk.reasoning.length;
-      opts.onDelta?.({ kind: "reasoning", text: chunk.reasoning });
+      deliver({ kind: "reasoning", text: chunk.reasoning });
     }
     if (chunk.content) {
       content += chunk.content;
-      opts.onDelta?.({ kind: "content", text: chunk.content });
+      deliver({ kind: "content", text: chunk.content });
     }
   };
 
@@ -174,6 +185,8 @@ async function attemptRoute(
     }
     handleLine(buf);
   } catch (e) {
+    // a throwing caller callback is our bug, not a provider failure, so never retry it as one
+    if (callbackError) throw callbackError.error;
     const aborted = abortReason();
     if (aborted) return fail(aborted, aborted, false);
     return fail("http_error", errorDetail(e), true);
@@ -221,6 +234,7 @@ export async function runFighter(opts: RunFighterOptions): Promise<RunResult> {
       break;
     }
     route = opts.entry.routes[Math.min(attempts, opts.entry.routes.length - 1)] ?? route;
+    if (attempts > 0) opts.onRetry?.(attempts + 1, route);
     attempts++;
     const result = await attemptRoute(opts, providers, route, signal, abortReason);
     if (result.ok) {

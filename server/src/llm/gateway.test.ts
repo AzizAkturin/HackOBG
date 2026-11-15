@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { runFighter, type Delta, type RunResult } from "./gateway.ts";
+import { runFighter, type Delta, type RunFighterOptions, type RunResult } from "./gateway.ts";
 import { MODELS, type ModelEntry } from "./models.ts";
 import { buildProviders, type ProviderTable } from "./providers.ts";
 
@@ -65,7 +65,7 @@ const dual: ModelEntry = {
   ],
 };
 
-async function run(entry: ModelEntry, handle: Handler, extra: { deadlineMs?: number; signal?: AbortSignal } = {}) {
+async function run(entry: ModelEntry, handle: Handler, extra: { deadlineMs?: number; signal?: AbortSignal; onRetry?: RunFighterOptions["onRetry"] } = {}) {
   seen = [];
   handler = handle;
   const deltas: Delta[] = [];
@@ -76,6 +76,7 @@ async function run(entry: ModelEntry, handle: Handler, extra: { deadlineMs?: num
     deadlineMs: extra.deadlineMs ?? 5000,
     signal: extra.signal,
     onDelta: (d) => deltas.push(d),
+    onRetry: extra.onRetry,
     providers,
   });
   return { result, deltas };
@@ -96,6 +97,31 @@ const goodStream: Handler = (_req, res) => {
 };
 
 describe("runFighter", () => {
+  it("rethrows an onDelta error without spending a retry", async () => {
+    seen = [];
+    handler = (_req, res) => {
+      sse(res);
+      send(res, delta({ reasoning_content: "thinking" }));
+      send(res, delta({}, "stop"));
+      res.end("data: [DONE]\n\n");
+    };
+    const boom = new Error("recorder failed");
+    await assert.rejects(
+      runFighter({
+        entry: dual,
+        messages: [{ role: "user", content: "fight" }],
+        maxTokens: 100,
+        deadlineMs: 5000,
+        onDelta: () => {
+          throw boom;
+        },
+        providers,
+      }),
+      (e) => e === boom,
+    );
+    assert.equal(seen.length, 1);
+  });
+
   it("streams content to onDelta in order and finishes", async () => {
     const { result, deltas } = await run(single, goodStream);
     assert.equal(result.status, "finished");
@@ -189,6 +215,29 @@ describe("runFighter", () => {
     assert.equal(result.status, "finished");
     assert.equal(result.attempts, 2);
     assert.equal(seen[1]?.path, "/nvidia/v1/chat/completions");
+  });
+
+  it("calls onRetry before the second attempt with the route it will use, and not on a first-try success", async () => {
+    const retries: { attempt: number; model: string; requestsSoFar: number }[] = [];
+    const onRetry: RunFighterOptions["onRetry"] = (attempt, route) =>
+      retries.push({ attempt, model: route.model, requestsSoFar: seen.length });
+    const { result } = await run(
+      dual,
+      (req, res) => {
+        if (req.url?.startsWith("/nvidia")) {
+          res.writeHead(503).end("unavailable");
+          return;
+        }
+        goodStream(req, res, undefined as never);
+      },
+      { onRetry },
+    );
+    assert.equal(result.status, "finished");
+    assert.deepEqual(retries, [{ attempt: 2, model: "test/dual:free", requestsSoFar: 1 }]);
+
+    retries.length = 0;
+    await run(single, goodStream, { onRetry });
+    assert.deepEqual(retries, []);
   });
 
   it("does not retry a non-retryable 4xx", async () => {
