@@ -129,9 +129,10 @@ Write endpoints authenticate with a SIWE-style signed message (wallet signature 
 ```
 # server
 MONAD_RPC_HTTP, MONAD_RPC_WS          # dedicated provider endpoint
-OPERATOR_PK, DRIP_PK                  # fresh hot wallets, see ADR-0016
+OPERATOR_PK, OPERATOR_ADDRESS, DRIP_PK, DRIP_ADDRESS   # fresh hot wallets, see ADR-0016
 FIGHTCLUB_ADDRESS, DEPLOY_BLOCK       # also in packages/shared/deployments/10143.json
-ZEN_API_KEY, OPENROUTER_API_KEY
+NVIDIA_API_KEY, NVIDIA_BASE_URL       # see docs/models.md
+OPENROUTER_API_KEY, OPENROUTER_BASE_URL
 PRIVY_APP_ID, PRIVY_APP_SECRET        # to verify Privy user ids on /api/drip
 DB_PATH=/data/fightclub.sqlite
 

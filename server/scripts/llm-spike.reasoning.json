@@ -1,0 +1,18 @@
+{
+  "nvidia": {
+    "runs": 1,
+    "models": ["nvidia/nemotron-3.5-lightning-30b-a3b", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", "nvidia/nemotron-3.5-super-vl-120b-a12b", "mistralai/mistral-large-4-1t-a52b", "stepfun-ai/step-5-preview", "meta/muse-glimmer-30b"],
+    "variants": [
+      { "__label": "off", "chat_template_kwargs": { "enable_thinking": false } },
+      { "__label": "low", "reasoning_effort": "low" }
+    ]
+  },
+  "openrouter": {
+    "runs": 1,
+    "models": ["dots-studio/dots-3-note-preview:free", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "nvidia/nemotron-3.5-lightning:free", "nvidia/nemotron-3.5-super-vl:free", "inclusionai/ling-3.2-flash:free"],
+    "variants": [
+      { "__label": "off", "reasoning": { "enabled": false } },
+      { "__label": "low", "reasoning": { "effort": "low" } }
+    ]
+  }
+}

@@ -5,6 +5,14 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "dev:server": "pnpm --filter server dev",
+    "start:server": "pnpm --filter server start",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "llm-spike": "node --env-file=server/.env server/scripts/llm-spike.mjs",
+    "llm-smoke": "node --env-file=server/.env server/scripts/llm-smoke.ts"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

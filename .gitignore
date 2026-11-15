@@ -5,3 +5,4 @@ dist
 !.env.example
 *.sqlite
 .DS_Store
+server/data/
