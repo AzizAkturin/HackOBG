@@ -1,11 +1,14 @@
 // Stadium around the ring: tiered seating packed with a crowd, phone flashes,
 // a square lighting rig with visible beams, and dust in the air.
 import { Sparkles, SpotLight } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { brands } from '../data/brands'
 import { mainEvent } from '../data/mock'
+import { Batch } from './StaticBatch'
 import { Crowd } from './crowd/Crowd'
+import type { Phase } from '../game/useRound'
 import { MAT_Y, type FightDirector } from './director'
 import { FIRST_ROW, ROW_DEPTH, ROW_RISE, TIERS } from './stadium'
 import { grimeTexture, puddleTexture, screenTexture, whenFontsReady } from './textures'
@@ -174,63 +177,62 @@ function Boards() {
   )
 }
 
-export function Venue({ reduced, director }: { reduced: boolean; director: FightDirector }) {
-  const floor = useMemo(() => {
-    const rough = puddleTexture()
-    rough.repeat.set(10, 10)
-    const grime = grimeTexture(55)
-    grime.repeat.set(14, 14)
-    return { rough, grime }
-  }, [])
-  const target = useMemo(() => new THREE.Object3D(), [])
-  const lamps: [number, number][] = [
-    [-RIG_HALF, -RIG_HALF],
-    [RIG_HALF, -RIG_HALF],
-    [-RIG_HALF, RIG_HALF],
-    [RIG_HALF, RIG_HALF],
-  ]
+const LAMPS: [number, number][] = [
+  [-RIG_HALF, -RIG_HALF],
+  [RIG_HALF, -RIG_HALF],
+  [-RIG_HALF, RIG_HALF],
+  [RIG_HALF, RIG_HALF],
+]
+
+const PHASE_LEVEL: Record<Phase, number> = { betting: 1, fighting: 1.1, rest: 0.5, voting: 0.7, reveal: 1.25 }
+const PHASE_SWEEP: Record<Phase, number> = { betting: 2.4, fighting: 0.9, rest: 1.6, voting: 1.2, reveal: 3 }
+const COOL = new THREE.Color('#e6f0ff')
+const WARM = new THREE.Color('#ffd2a0')
+
+/** Rig spots that sweep over the mat, dim between rounds and flare on big hits. */
+function RigLights({ director, reduced }: { director: FightDirector; reduced: boolean }) {
+  const targets = useMemo(() => [...LAMPS, null].map(() => new THREE.Object3D()), [])
+  const spots = useRef<(THREE.SpotLight | null)[]>([])
+  const center = useRef<THREE.SpotLight>(null)
+  const rims = useRef<(THREE.PointLight | null)[]>([])
+  const state = useRef({ level: 1, sweep: 2.4 })
+
+  useFrame(({ clock }, delta) => {
+    const dt = Math.min(delta, 0.05)
+    const k = 1 - Math.exp(-2 * dt)
+    const s = state.current
+    s.level += (PHASE_LEVEL[director.phase] - s.level) * k
+    s.sweep += ((reduced ? 0 : PHASE_SWEEP[director.phase]) - s.sweep) * k
+    const t = clock.elapsedTime
+    const flare = reduced ? 0 : director.shake
+    const warm = director.phase === 'rest' ? 1 : 0
+
+    targets.slice(0, LAMPS.length).forEach((o, i) => {
+      const a = i * (Math.PI / 2)
+      o.position.set(Math.cos(t * 0.45 + a) * s.sweep, MAT_Y, Math.sin(t * 0.33 + a * 1.7) * s.sweep)
+      const light = spots.current[i]
+      if (light) {
+        light.intensity = 140 * s.level * (1 + flare * 0.7)
+        light.color.copy(COOL).lerp(WARM, warm)
+      }
+    })
+    if (center.current) center.current.intensity = 90 * s.level * (1 + flare * 0.5)
+    rims.current.forEach((l, i) => {
+      if (l) l.intensity = (11 + Math.sin(t * 1.3 + i * 3) * 2) * s.level + flare * 26
+    })
+  })
 
   return (
     <>
-      {/* arena floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[120, 120]} />
-        <meshStandardMaterial color="#16181c" map={floor.grime} roughness={1} roughnessMap={floor.rough} metalness={0.35} />
-      </mesh>
-      <Bleachers />
-      <Barriers />
-      <FloorCables />
-      <Rafters />
-      <Boards />
-
-      {/* square lighting truss over the ring */}
-      <group position={[0, RIG_Y, 0]}>
-        {[-1, 1].map((s) => (
-          <group key={s}>
-            <mesh position={[0, 0, s * RIG_HALF]}>
-              <boxGeometry args={[2 * RIG_HALF + 0.4, 0.3, 0.3]} />
-              <meshStandardMaterial color="#1a1c22" metalness={0.8} roughness={0.4} />
-            </mesh>
-            <mesh position={[s * RIG_HALF, 0, 0]}>
-              <boxGeometry args={[0.3, 0.3, 2 * RIG_HALF + 0.4]} />
-              <meshStandardMaterial color="#1a1c22" metalness={0.8} roughness={0.4} />
-            </mesh>
-          </group>
-        ))}
-        {lamps.map(([x, z]) => (
-          <mesh key={`${x}${z}`} position={[x, -0.25, z]} rotation={[Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[0.28, 20]} />
-            <meshBasicMaterial color="#eaf6ff" toneMapped={false} />
-          </mesh>
-        ))}
-      </group>
-
-      <primitive object={target} position={[0, MAT_Y, 0]} />
-      {lamps.map(([x, z], i) => (
+      {targets.map((o, i) => (
+        <primitive key={i} object={o} position={[0, MAT_Y, 0]} />
+      ))}
+      {LAMPS.map(([x, z], i) => (
         <SpotLight
           key={`${x}${z}`}
+          ref={(l) => { spots.current[i] = l }}
           position={[x, RIG_Y - 0.3, z]}
-          target={target}
+          target={targets[i]}
           color="#e6f0ff"
           intensity={140}
           distance={14}
@@ -244,8 +246,9 @@ export function Venue({ reduced, director }: { reduced: boolean; director: Fight
         />
       ))}
       <SpotLight
+        ref={center}
         position={[0, RIG_Y - 0.3, 0]}
-        target={target}
+        target={targets[LAMPS.length]}
         color="#f2f7ff"
         intensity={90}
         distance={14}
@@ -256,9 +259,62 @@ export function Venue({ reduced, director }: { reduced: boolean; director: Fight
       />
 
       {/* tight corner rim lights over the mat, kept off the stands */}
-      <pointLight position={[-4.5, 3.5, -3]} color="#ff3b30" intensity={11} distance={9} />
-      <pointLight position={[4.5, 3.5, 3]} color="#3b7bff" intensity={11} distance={9} />
+      <pointLight ref={(l) => { rims.current[0] = l }} position={[-4.5, 3.5, -3]} color="#ff3b30" intensity={11} distance={9} />
+      <pointLight ref={(l) => { rims.current[1] = l }} position={[4.5, 3.5, 3]} color="#3b7bff" intensity={11} distance={9} />
       <pointLight position={[0, 6, 0]} color="#3fe0ff" intensity={3} distance={10} />
+    </>
+  )
+}
+
+export function Venue({ reduced, director }: { reduced: boolean; director: FightDirector }) {
+  const floor = useMemo(() => {
+    const rough = puddleTexture()
+    rough.repeat.set(10, 10)
+    const grime = grimeTexture(55)
+    grime.repeat.set(14, 14)
+    return { rough, grime }
+  }, [])
+
+  return (
+    <>
+      {/* arena floor */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[120, 120]} />
+        <meshStandardMaterial color="#16181c" map={floor.grime} roughness={1} roughnessMap={floor.rough} metalness={0.35} />
+      </mesh>
+      <Batch>
+        <Bleachers />
+        <Barriers />
+        <FloorCables />
+        <Rafters />
+      </Batch>
+      <Boards />
+
+      {/* square lighting truss over the ring */}
+      <Batch>
+      <group position={[0, RIG_Y, 0]}>
+        {[-1, 1].map((s) => (
+          <group key={s}>
+            <mesh position={[0, 0, s * RIG_HALF]}>
+              <boxGeometry args={[2 * RIG_HALF + 0.4, 0.3, 0.3]} />
+              <meshStandardMaterial color="#1a1c22" metalness={0.8} roughness={0.4} />
+            </mesh>
+            <mesh position={[s * RIG_HALF, 0, 0]}>
+              <boxGeometry args={[0.3, 0.3, 2 * RIG_HALF + 0.4]} />
+              <meshStandardMaterial color="#1a1c22" metalness={0.8} roughness={0.4} />
+            </mesh>
+          </group>
+        ))}
+        {LAMPS.map(([x, z]) => (
+          <mesh key={`${x}${z}`} position={[x, -0.25, z]} rotation={[Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[0.28, 20]} />
+            <meshBasicMaterial color="#eaf6ff" toneMapped={false} />
+          </mesh>
+        ))}
+      </group>
+      </Batch>
+
+      <RigLights director={director} reduced={reduced} />
 
       <Crowd director={director} reduced={reduced} />
       <Sparkles count={140} scale={[10, 7, 10]} position={[0, 5, 0]} size={2} speed={reduced ? 0 : 0.25} opacity={0.35} color="#cfe6ff" />

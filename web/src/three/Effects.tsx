@@ -5,7 +5,7 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { Phase } from '../game/useRound'
 import { MAT_Y, type Burst, type FightDirector } from './director'
-import { dotTexture, smokeTexture } from './textures'
+import { dotTexture } from './textures'
 
 /** Advances the director. Mount it first so robots read fresh state. */
 export function DirectorTick({ director, phase }: { director: FightDirector; phase: Phase }) {
@@ -146,35 +146,4 @@ export function CameraRig({ director, phase, reduced }: { director: FightDirecto
     camera.lookAt(look.current)
   })
   return null
-}
-
-/** Low, slowly turning smoke over the floor and mat. */
-export function Haze({ reduced }: { reduced: boolean }) {
-  const tex = useMemo(() => smokeTexture(), [])
-  const puffs = useMemo(
-    () =>
-      Array.from({ length: 14 }, (_, i) => {
-        const a = (i / 14) * Math.PI * 2
-        const r = i % 2 ? 4.5 : 8.5
-        return { x: Math.cos(a) * r, z: Math.sin(a) * r, y: 0.5 + (i % 3) * 0.35, s: 6 + (i % 4) * 2, speed: 0.02 + (i % 5) * 0.01 }
-      }),
-    [],
-  )
-  const refs = useRef<(THREE.Mesh | null)[]>([])
-  useFrame(({ clock }) => {
-    if (reduced) return
-    refs.current.forEach((m, i) => {
-      if (m) m.rotation.z = clock.elapsedTime * puffs[i].speed * (i % 2 ? 1 : -1)
-    })
-  })
-  return (
-    <>
-      {puffs.map((p, i) => (
-        <mesh key={i} ref={(m) => { refs.current[i] = m }} position={[p.x, p.y, p.z]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[p.s, p.s]} />
-          <meshBasicMaterial map={tex} color="#8fb2d6" transparent opacity={0.45} depthWrite={false} />
-        </mesh>
-      ))}
-    </>
-  )
 }

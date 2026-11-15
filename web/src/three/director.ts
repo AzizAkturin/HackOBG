@@ -63,6 +63,8 @@ export class FightDirector {
   shake = 0
   /** per robot, 1 right after taking a hit, decaying to 0 */
   hurt = [0, 0]
+  /** per robot, builds with every landed punch over a fight, 0 to 1 */
+  damage = [0, 0]
   bursts: Burst[] = []
   /** Latest thing worth reacting to; `who` is the fighter who acted (attacker or taunter). */
   crowd: { seq: number; kind: CrowdKind; who: number } = { seq: 0, kind: 'hit', who: 0 }
@@ -115,6 +117,7 @@ export class FightDirector {
   update(t: number, dt: number, phase: Phase) {
     if (phase !== this.phase) {
       this.phase = phase
+      if (phase === 'betting') this.damage = [0, 0]
       this.actions = [null, null]
       this.queue = []
       this.next = t + (phase === 'fighting' ? 0.9 : 2.5)
@@ -254,10 +257,12 @@ export class FightDirector {
     if (reaction === 'block') {
       this.bursts.push({ pos, dir, strength: 0.4 })
       this.shake = Math.min(1, this.shake + 0.15)
+      this.damage[1 - attacker] = Math.min(1, this.damage[1 - attacker] + 0.01)
     } else if (reaction === 'hit' || reaction === 'knockdown') {
       this.bursts.push({ pos, dir, strength: reaction === 'knockdown' ? 1.6 : 1 })
       this.shake = Math.min(1.2, this.shake + (reaction === 'knockdown' ? 1 : 0.45))
       this.hurt[1 - attacker] = 1
+      this.damage[1 - attacker] = Math.min(1, this.damage[1 - attacker] + (reaction === 'knockdown' ? 0.2 : 0.06))
     }
     this.cue(attacker, reaction)
     this.emit({ attacker, move, reaction })

@@ -19,6 +19,7 @@ class Showcase implements RobotDriver {
   base = lineup.map((_, i) => ({ x: (i - (lineup.length - 1) / 2) * SPACING, z: 0, rotY: 0 }))
   speed = lineup.map(() => 0)
   hurt = lineup.map(() => 0)
+  damage = lineup.map(() => 0)
 
   pose(i: number, t: number): Pose {
     const slot = 2.2
@@ -53,6 +54,7 @@ function Stats({ out }: { out: React.RefObject<HTMLSpanElement | null> }) {
 
 export function GaragePage() {
   const [tier, setTier] = useState<WeightClass>('Heavyweight')
+  const [wear, setWear] = useState(0)
   const driver = useMemo(() => new Showcase(), [])
   const stats = useRef<HTMLSpanElement>(null)
 
@@ -65,6 +67,21 @@ export function GaragePage() {
             One chassis per provider. Firmware follows the weight class: <span style={{ color: firmware[tier].color }}>{firmware[tier].version} {firmware[tier].label}</span>
           </p>
         </div>
+        <label className="flex items-center gap-2 font-display uppercase tracking-widest text-mute">
+          Damage
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={wear}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              setWear(v)
+              driver.damage.fill(v)
+            }}
+          />
+        </label>
         <div className="flex gap-2" role="radiogroup" aria-label="Firmware tier">
           {tiers.map((w) => (
             <button

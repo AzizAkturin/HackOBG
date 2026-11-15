@@ -1,15 +1,15 @@
 // The 3D main event: two branded robots fighting in a championship ring.
 import { Environment, Lightformer, PerformanceMonitor } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { BrightnessContrast, ChromaticAberration, EffectComposer, HueSaturation, Vignette } from '@react-three/postprocessing'
-import type { ChromaticAberrationEffect } from 'postprocessing'
+import { BrightnessContrast, ChromaticAberration, EffectComposer, HueSaturation, SSAO, ToneMapping, Vignette } from '@react-three/postprocessing'
+import { ToneMappingMode, type ChromaticAberrationEffect } from 'postprocessing'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { brands } from '../data/brands'
 import type { Phase } from '../game/useRound'
 import { mainEvent } from '../data/mock'
 import { FightDirector, type FightEvent } from './director'
-import { CameraRig, DirectorTick, Haze, Sparks } from './Effects'
+import { CameraRig, DirectorTick, Sparks } from './Effects'
 import { Ring } from './Ring'
 import { Robot } from './Robot'
 import { chassis } from './robots/chassis'
@@ -57,7 +57,6 @@ function Arena({ selected, phase, onSelect, onEvent }: Props) {
       <CameraRig director={director} phase={phase} reduced={reduced} />
 
       <color attach="background" args={['#04060a']} />
-      <fog attach="fog" args={['#04060a', 16, 42]} />
       <hemisphereLight args={['#2a3550', '#030405', 0.05]} />
 
       {/* soft reflections for the metal, no network fetch */}
@@ -69,7 +68,6 @@ function Arena({ selected, phase, onSelect, onEvent }: Props) {
       </Environment>
 
       <Venue reduced={reduced} director={director} />
-      <Haze reduced={reduced} />
       <Ring resting={phase === 'rest'} reduced={reduced} />
       {mainEvent.fighters.map((f, i) => (
         <Robot
@@ -88,11 +86,13 @@ function Arena({ selected, phase, onSelect, onEvent }: Props) {
       ))}
       <Sparks director={director} />
 
-      <EffectComposer multisampling={4}>
+      <EffectComposer multisampling={4} enableNormalPass>
+        <SSAO samples={16} rings={7} radius={0.08} intensity={1.5} luminanceInfluence={0.5} worldDistanceThreshold={30} worldDistanceFalloff={10} worldProximityThreshold={0.5} worldProximityFalloff={0.3} />
         <ImpactLens director={director} />
         <HueSaturation saturation={-0.28} />
-        <BrightnessContrast brightness={-0.03} contrast={0.16} />
-        <Vignette offset={0.25} darkness={0.7} />
+        <BrightnessContrast brightness={-0.03} contrast={0.04} />
+        <ToneMapping mode={ToneMappingMode.AGX} />
+        <Vignette offset={0.25} darkness={0.6} />
       </EffectComposer>
     </Canvas>
   )

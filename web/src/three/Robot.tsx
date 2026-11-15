@@ -8,9 +8,10 @@ import { blendPose, GUARD, type Pose } from './moves'
 import { ARM_UPPER, TORSO_Y, type Chassis, type Finish } from './robots/chassis'
 import { firmwareMaterial, type Firmware } from './robots/firmware'
 import { mergeParts, type MatKey, type Merged } from './robots/parts'
-import { chestTexture, grimeTexture, hazardTexture, noiseTexture } from './textures'
+import { applyWear, markHits, type WearUniforms } from './robots/wear'
+import { brushedTextures, chestTexture, dotTexture, grimeTexture, hazardTexture, noiseTexture, panelNormalTexture, wearMaskTexture } from './textures'
 
-export type RobotDriver = Pick<FightDirector, 'base' | 'speed' | 'pose' | 'hurt'>
+export type RobotDriver = Pick<FightDirector, 'base' | 'speed' | 'pose' | 'hurt' | 'damage'>
 
 export interface RobotProps {
   index: number
@@ -37,6 +38,31 @@ interface Built {
   knee: Merged
   foot: Merged
   wheel: Merged
+  core: Core
+}
+
+interface Core {
+  p: THREE.Vector3
+  q: THREE.Quaternion
+  r: number
+}
+
+const UNLIT = new Set<MatKey>(['eye', 'fw', 'pip1', 'pip2', 'pip3'])
+
+// sits the core on whatever torso surface faces forward at chest height
+function findCore(torso: Merged): Core {
+  const meshes = torso.filter(([k]) => !UNLIT.has(k)).map(([, g]) => new THREE.Mesh(g))
+  const box = new THREE.Box3()
+  for (const m of meshes) box.expandByObject(m)
+  const size = box.getSize(new THREE.Vector3())
+  const y = box.min.y + size.y * 0.6
+  const hit = new THREE.Raycaster(new THREE.Vector3(0, y, box.max.z + 1), new THREE.Vector3(0, 0, -1)).intersectObjects(meshes)[0]
+  const normal = hit?.face?.normal.clone() ?? new THREE.Vector3(0, 0, 1)
+  return {
+    p: hit ? hit.point : new THREE.Vector3(0, y, box.max.z),
+    q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal),
+    r: THREE.MathUtils.clamp(size.x * 0.085, 0.045, 0.085),
+  }
 }
 
 const built = new WeakMap<Chassis, Built>()
@@ -47,9 +73,10 @@ function geometryFor(c: Chassis): Built {
     const rear = c.rearArm ?? c.arm
     const lead = mergeParts(c.arm.shoulder)
     const leadElbow = mergeParts(c.arm.elbow)
+    const torso = mergeParts(c.torso)
     b = {
       pelvis: mergeParts(c.pelvis),
-      torso: mergeParts(c.torso),
+      torso,
       head: mergeParts(c.head),
       shoulder: [lead, c.rearArm ? mergeParts(rear.shoulder) : lead],
       elbow: [leadElbow, c.rearArm ? mergeParts(rear.elbow) : leadElbow],
@@ -57,50 +84,73 @@ function geometryFor(c: Chassis): Built {
       knee: mergeParts(c.leg?.knee ?? []),
       foot: mergeParts(c.leg?.foot ?? []),
       wheel: mergeParts(c.wheel ?? []),
+      core: findCore(torso),
     }
+    const none = () => 0
+    for (const g of [b.pelvis, b.thigh, b.knee, b.foot, b.wheel, ...b.shoulder]) markHits(g, none)
+    markHits(b.head, (_, n) => 0.6 + 0.4 * n.z)
+    markHits(b.torso, (_, n) => n.z)
+    for (const g of b.elbow) markHits(g, (p) => THREE.MathUtils.smoothstep(-p.y, 0.6, 0.75))
     built.set(c, b)
   }
   return b
 }
 
-const UNLIT = new Set<MatKey>(['eye', 'fw', 'pip1', 'pip2', 'pip3'])
 const PIP_OFF = new THREE.MeshStandardMaterial({ color: '#151619', metalness: 0.3, roughness: 0.25 })
 const MIRROR: V3 = [-1, 1, 1]
+const CORE_LIGHT = 0.35
 
-let sharedNoise: THREE.Texture | undefined
-let sharedHazard: THREE.Texture | undefined
+let shared: { noise: THREE.Texture; hazard: THREE.Texture; panel: THREE.Texture; brushed: ReturnType<typeof brushedTextures> } | undefined
 
 function paint(brand: Brand, finish: Finish, number: number, seed: number) {
-  sharedNoise ??= noiseTexture()
-  sharedHazard ??= hazardTexture()
+  shared ??= { noise: noiseTexture(), hazard: hazardTexture(), panel: panelNormalTexture(), brushed: brushedTextures() }
+  const { noise, hazard, panel, brushed } = shared
   const grime = finish.grime ? grimeTexture(seed) : null
-  const coat = (color: string, extra = 0) =>
-    new THREE.MeshPhysicalMaterial({
+  const wearMask = wearMaskTexture(seed * 7 + 3)
+  const wear: WearUniforms = { uDamage: { value: 0 }, uBase: { value: finish.grime ? 0.3 : 0.12 }, uRust: { value: finish.grime ? 1 : 0 } }
+  const coat = (color: string, extra: number, clearcoat: number) => {
+    const m = new THREE.MeshPhysicalMaterial({
       color,
       map: grime,
       metalness: finish.metalness,
       roughness: THREE.MathUtils.clamp(brand.roughness + finish.roughness + extra, 0.05, 1),
-      roughnessMap: sharedNoise,
-      clearcoat: finish.clearcoat,
-      clearcoatRoughness: 0.3,
+      roughnessMap: noise,
+      normalMap: panel,
+      normalScale: new THREE.Vector2(0.7, 0.7),
+      clearcoat,
+      clearcoatRoughness: 0.06,
+      clearcoatNormalMap: panel,
+      clearcoatNormalScale: new THREE.Vector2(0.3, 0.3),
     })
+    applyWear(m, wearMask, wear, { chip: 1, scuff: 1, drip: 0.8 })
+    return m
+  }
+  const metal = (color: string, metalness: number, roughness: number) =>
+    new THREE.MeshStandardMaterial({ color, metalness, roughness, roughnessMap: brushed.roughness, normalMap: brushed.normal, normalScale: new THREE.Vector2(0.5, 0.5) })
+  const mech = metal(brand.gear, 0.92, 0.5)
+  mech.map = grime
+  applyWear(mech, wearMask, wear, { chip: 0, scuff: 0.7, drip: 1.6 })
   return {
-    armor: coat(brand.primary),
-    trim: coat(brand.secondary, 0.06),
-    mech: new THREE.MeshStandardMaterial({ color: brand.gear, map: grime, metalness: 0.92, roughness: 0.45, roughnessMap: sharedNoise }),
-    chrome: new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 1, roughness: 0.16 }),
-    dark: new THREE.MeshStandardMaterial({ color: '#0c0c0e', metalness: 0.5, roughness: 0.55 }),
+    armor: coat(brand.primary, 0, finish.clearcoat),
+    trim: coat(brand.secondary, 0.06, finish.clearcoat * 0.6),
+    mech,
+    chrome: metal('#c9ccd2', 1, 0.2),
+    dark: new THREE.MeshStandardMaterial({ color: '#0c0c0e', metalness: 0.5, roughness: 0.55, normalMap: panel, normalScale: new THREE.Vector2(0.4, 0.4) }),
     rubber: new THREE.MeshStandardMaterial({ color: '#141414', roughness: 0.85 }),
-    hazard: new THREE.MeshStandardMaterial({ map: sharedHazard, metalness: 0.3, roughness: 0.7 }),
-    rivet: new THREE.MeshStandardMaterial({ color: '#8d9096', metalness: 1, roughness: 0.35 }),
+    hazard: new THREE.MeshStandardMaterial({ map: hazard, metalness: 0.3, roughness: 0.7 }),
+    rivet: metal('#8d9096', 1, 0.4),
     eye: new THREE.MeshStandardMaterial({ color: brand.glow, emissive: brand.glow, emissiveIntensity: 2.4, toneMapped: false }),
     chest: new THREE.MeshPhysicalMaterial({
       map: chestTexture(brand.secondary, brand.primary, number),
       metalness: 0.4,
       roughness: brand.roughness + 0.05,
       clearcoat: 0.5,
+      clearcoatRoughness: 0.08,
     }),
+    core: new THREE.MeshStandardMaterial({ color: '#000', emissive: brand.glow, emissiveIntensity: 3, toneMapped: false }),
     grime,
+    wearMask,
+    wear,
   }
 }
 
@@ -124,6 +174,10 @@ export function Robot({ index, brand, chassis, firmware, number, director, selec
   const shoulders = useRef<(THREE.Group | null)[]>([])
   const elbows = useRef<(THREE.Group | null)[]>([])
   const ring = useRef<THREE.Mesh>(null)
+  const coreLight = useRef<THREE.PointLight>(null)
+  const halo = useRef<THREE.Mesh>(null)
+  const glow = useRef(0)
+  const haloMap = useMemo(() => dotTexture(), [])
   const pose = useRef<Pose>({ ...GUARD })
   const stride = useRef(0)
 
@@ -134,9 +188,10 @@ export function Robot({ index, brand, chassis, firmware, number, director, selec
   const lights = useMemo(() => firmwareMaterial(firmware), [firmware])
   useEffect(
     () => () => {
-      const { grime, ...mats } = coat
+      const { grime, wearMask, wear: _, ...mats } = coat
       for (const m of Object.values(mats)) m.dispose()
       grime?.dispose()
+      wearMask.dispose()
       coat.chest.map?.dispose()
     },
     [coat],
@@ -144,7 +199,7 @@ export function Robot({ index, brand, chassis, firmware, number, director, selec
   useEffect(() => () => lights.dispose(), [lights])
 
   const mats = useMemo<Record<MatKey, THREE.Material>>(() => {
-    const { grime: _, ...paints } = coat
+    const { grime: _g, wearMask: _m, wear: _w, core: _c, ...paints } = coat
     return {
       ...paints,
       fw: lights,
@@ -158,6 +213,14 @@ export function Robot({ index, brand, chassis, firmware, number, director, selec
     const t = clock.elapsedTime
     lights.userData.time.value = t
     lights.color.lerpColors(lights.userData.base, lights.userData.flash, director.hurt[index])
+    const damage = director.damage[index]
+    coat.wear.uDamage.value = damage
+    // the core browns out on a hit and stutters more as damage builds
+    const flicker = Math.sin(Math.floor(t * 14) * 12.9898 + index) * 0.5 + 0.5
+    const brownout = director.hurt[index] > 0.4 || flicker < damage * 0.35 ? 0.2 : 1
+    const power = (0.85 + 0.15 * Math.sin(t * 2.4 + index * 2)) * brownout
+    coat.core.emissiveIntensity = 3 * power
+    if (coreLight.current) coreLight.current.intensity = CORE_LIGHT * power
     const r = root.current
     if (!r) return
     const base = director.base[index]
@@ -210,10 +273,10 @@ export function Robot({ index, brand, chassis, firmware, number, director, selec
       elbows.current[a]?.rotation.set(e - sway, 0, 0)
     })
 
-    if (ring.current) {
-      const mat = ring.current.material as THREE.MeshBasicMaterial
-      mat.opacity = selected ? 0.6 + Math.sin(t * 4) * 0.25 : hovered && !locked ? 0.3 : 0
-    }
+    const glowTarget = selected ? 0.7 + Math.sin(t * 4) * 0.3 : hovered && !locked ? 1 : 0
+    glow.current = THREE.MathUtils.damp(glow.current, glowTarget, 10, delta)
+    if (ring.current) (ring.current.material as THREE.MeshBasicMaterial).opacity = Math.min(1, glow.current * 0.9)
+    if (halo.current) (halo.current.material as THREE.MeshBasicMaterial).opacity = glow.current * 0.55
   })
 
   const pointer = {
@@ -261,7 +324,11 @@ export function Robot({ index, brand, chassis, firmware, number, director, selec
     <group ref={root} {...pointer}>
       <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
         <ringGeometry args={[0.95, 1.1, 48]} />
-        <meshBasicMaterial color={brand.glow} transparent opacity={0} toneMapped={false} />
+        <meshBasicMaterial color={brand.glow} transparent opacity={0} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+      </mesh>
+      <mesh ref={halo} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
+        <planeGeometry args={[3.4, 3.4]} />
+        <meshBasicMaterial map={haloMap} color={brand.glow} transparent opacity={0} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
       </mesh>
 
       <group scale={ROBOT_SCALE * rig.scale}>
@@ -280,6 +347,15 @@ export function Robot({ index, brand, chassis, firmware, number, director, selec
             <Slot geo={geo.pelvis} mats={mats} />
             <group ref={torso} position={[0, TORSO_Y, 0]}>
               <Slot geo={geo.torso} mats={mats} />
+              <group position={geo.core.p} quaternion={geo.core.q}>
+                <mesh rotation-x={Math.PI / 2} material={coat.core}>
+                  <cylinderGeometry args={[geo.core.r * 0.72, geo.core.r * 0.72, 0.03, 24]} />
+                </mesh>
+                <mesh material={coat.dark} castShadow>
+                  <torusGeometry args={[geo.core.r * 0.85, geo.core.r * 0.22, 10, 28]} />
+                </mesh>
+                <pointLight ref={coreLight} color={brand.glow} intensity={CORE_LIGHT} distance={2.5} decay={2} position={[0, 0, 0.3]} />
+              </group>
               <group ref={head} position={rig.neck}>
                 <Slot geo={geo.head} mats={mats} />
               </group>

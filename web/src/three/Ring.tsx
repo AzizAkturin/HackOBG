@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { brands } from '../data/brands'
 import { mainEvent } from '../data/mock'
+import { Batch } from './StaticBatch'
 import { CORNER_SEATS, MAT_Y } from './director'
 import { grimeTexture, holoRingTexture, noiseTexture, ringCanvasTexture, screenTexture, skirtTexture, whenFontsReady } from './textures'
 
@@ -172,6 +173,7 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
 
   return (
     <group>
+      <Batch>
       {/* raised stage: scuffed, matte */}
       <mesh position={[0, STAGE_Y / 2, 0]} receiveShadow castShadow>
         <boxGeometry args={[stageSize, STAGE_Y, stageSize]} />
@@ -201,6 +203,7 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
           )
         }),
       )}
+      </Batch>
 
       {/* ring base with stencilled skirt banners */}
       <mesh position={[0, (STAGE_Y + MAT_Y) / 2, 0]} castShadow receiveShadow>
@@ -223,6 +226,7 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
         <planeGeometry args={[ringSize, ringSize]} />
         <meshStandardMaterial map={floor} roughness={0.9} roughnessMap={base.rough} />
       </mesh>
+      <Batch>
       {[-1, 1].map((s) => (
         <group key={s}>
           <RoundedBox args={[ringSize + 0.1, 0.1, 0.12]} radius={0.04} position={[0, MAT_Y + 0.02, s * (ringSize / 2)]}>
@@ -312,6 +316,7 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
           </mesh>
         )
       })}
+      </Batch>
 
       <HoloFloor reduced={reduced} />
       <HoloScreen reduced={reduced} />
@@ -321,6 +326,7 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
       <CornerKit x={-(RING_HALF + APRON + 0.7)} z={RING_HALF + APRON - 0.4} color="#9e2026" />
       <CornerKit x={RING_HALF + APRON + 0.7} z={-(RING_HALF + APRON - 0.4)} color="#1f47a3" />
 
+      <Batch>
       {/* corner steps */}
       {[-1, 1].map((sx) => (
         <group key={sx} position={[sx * (RING_HALF + APRON + 0.55), STAGE_Y, RING_HALF + APRON + 0.55]} rotation={[0, sx * Math.PI / 4, 0]}>
@@ -359,6 +365,7 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
           </mesh>
         </group>
       ))}
+      </Batch>
     </group>
   )
 }
