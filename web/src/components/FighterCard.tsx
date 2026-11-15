@@ -1,40 +1,43 @@
+import { coefficient } from '@wab/shared'
 import { brands } from '../data/brands'
 import { mainEvent } from '../data/mock'
-import type { Round } from '../game/useRound'
+import type { Match } from '../game/useMatch'
 import { firmware } from '../three/robots/firmware'
 import { RobotBadge } from './RobotBadge'
 
 interface Props {
-  index: number
-  round: Round
+  index: 0 | 1
+  match: Match
   selected: boolean
   onSelect: () => void
   className?: string
 }
 
-export function FighterCard({ index, round, selected, onSelect, className = '' }: Props) {
+const CORNER = ['var(--color-red)', 'var(--color-blue)'] as const
+
+export function FighterCard({ index, match, selected, onSelect, className = '' }: Props) {
   const f = mainEvent.fighters[index]
   const corner = index === 0 ? 'Red corner' : 'Blue corner'
-  const share = round.pools[index] / round.total
-  const myStake = round.myBets.filter((b) => b.fighter === index).reduce((a, b) => a + b.amount, 0)
+  const price = index === 0 ? match.priceA : 1 - match.priceA
+  const shares = match.shares[index]!
 
   const stats: [string, string][] = [
     ['Record', `${f.record[0]}-${f.record[1]}`],
     ['ELO', String(f.elo)],
     ['Model', f.model],
+    ['Rounds won', `${match.wins[index]} of 2 needed`],
   ]
 
   return (
-    <article
-      aria-label={`${corner}: ${f.name}`}
-      className={`panel flex flex-col p-5 ${className}`}
-      style={selected ? { borderColor: f.accent } : undefined}
-    >
-      <header className="flex items-center justify-between">
-        <span className="label text-[11px]" style={{ color: f.accent }}>
+    <article aria-label={`${corner}: ${f.name}`} className={`panel flex flex-col p-5 ${className}`} style={selected ? { borderColor: CORNER[index] } : undefined}>
+      <header className="flex items-start justify-between gap-3">
+        <span className="label text-[11px]" style={{ color: CORNER[index] }}>
           {corner}
         </span>
-        <span className="font-display text-3xl tabular-nums text-gold">{round.odds(index).toFixed(2)}x</span>
+        <span className="text-right font-display leading-none tabular-nums">
+          <span className="block text-3xl font-bold text-ink">{Math.round(price * 100)}%</span>
+          <span className="text-base text-mute">{coefficient(price).toFixed(2)}x</span>
+        </span>
       </header>
 
       <div className="mt-3 flex items-center gap-4">
@@ -58,28 +61,27 @@ export function FighterCard({ index, round, selected, onSelect, className = '' }
         ))}
       </dl>
 
-      <div className="mt-4">
-        <p className="text-lg text-mute">{round.backers[index]} backers</p>
-        <div className="mt-1 h-2 bg-well" aria-hidden>
-          <div className="h-full transition-[width] duration-500" style={{ width: `${share * 100}%`, background: f.accent }} />
-        </div>
-        {myStake > 0 && <p className="mt-1 text-lg text-gold">You: {myStake.toFixed(2)} MON</p>}
-      </div>
+      {shares > 0 && (
+        <p className="mt-3 text-lg">
+          You hold <strong className="tabular-nums">{shares.toFixed(3)}</strong> shares · pays{' '}
+          <strong className="tabular-nums text-green">{shares.toFixed(3)} MON</strong> if {f.name} wins
+        </p>
+      )}
 
       <button
         type="button"
         onClick={onSelect}
-        disabled={round.locked}
+        disabled={!match.tradingOpen}
         aria-pressed={selected}
-        className="btn-pixel mt-auto min-h-12 w-full cursor-pointer border-2 font-display text-lg font-bold uppercase tracking-wider transition-colors"
+        className="btn-pixel mt-auto min-h-12 w-full cursor-pointer border-2 font-display text-lg font-bold uppercase tracking-wider transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         style={{
-          borderColor: f.accent,
-          background: selected ? f.accent : 'transparent',
-          color: selected ? '#fff' : f.accent,
+          borderColor: CORNER[index],
+          background: selected ? CORNER[index] : 'transparent',
+          color: selected ? '#fff' : CORNER[index],
           marginTop: '1.25rem',
         }}
       >
-        {selected ? '✓ Selected' : 'Back'}
+        {!match.tradingOpen ? 'Trading closed' : selected ? `✓ Buying ${f.name}` : `Buy ${f.name}`}
       </button>
     </article>
   )

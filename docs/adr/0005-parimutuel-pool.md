@@ -1,6 +1,6 @@
 # 0005: Parimutuel pool with entry fee and rake
 
-**Status:** Accepted
+**Status:** Superseded by [0017](0017-live-market-five-stages.md)
 
 ## Context
 The product is "bet on one competitor among several", like horse racing. Each round needs an entry fee. Higher weight classes should be higher-stakes.

@@ -4,987 +4,602 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {WAB} from "../src/WAB.sol";
 
-contract ReentrantClaimer {
-    WAB immutable club;
-    uint256 public roundId;
-    bool public reentryAttempted;
-    bool public reentrySucceeded;
-
-    constructor(WAB c) {
-        club = c;
-    }
-
-    function enter(uint256 id, uint8 idx) external payable {
-        roundId = id;
-        club.enter{value: msg.value}(id, idx);
-    }
-
-    function claim() external {
-        club.claim(roundId);
-    }
-
-    function refund() external {
-        club.refund(roundId);
-    }
-
-    receive() external payable {
-        if (reentryAttempted) return;
-        reentryAttempted = true;
-        try club.claim(roundId) {
-            reentrySucceeded = true;
-        } catch {}
-        try club.refund(roundId) {
-            reentrySucceeded = true;
-        } catch {}
-    }
-}
-
-contract RejectingReceiver {
-    function enter(WAB club, uint256 id, uint8 idx) external payable {
-        club.enter{value: msg.value}(id, idx);
-    }
-
-    function claim(WAB club, uint256 id) external {
-        club.claim(id);
-    }
-}
-
 contract WABTest is Test {
-    WAB club;
-    address owner = makeAddr("owner");
+    WAB wab;
+    address owner = address(this);
     address operator = makeAddr("operator");
-    address treasury = makeAddr("treasury");
-    address house = makeAddr("house");
-    address stranger = makeAddr("stranger");
-
-    uint8 constant CLASS = 0;
-    uint96 constant MIN_BET = 0.1 ether;
-    uint96 constant MAX_BET = 5 ether;
-    uint32 constant VOTE = 60;
-    uint32 constant GRACE = 300;
+    address alice = makeAddr("alice");
+    address bob = makeAddr("bob");
+    address carol = makeAddr("carol");
+    address outsider = makeAddr("outsider");
+    uint32 fA;
+    uint32 fB;
     bytes32 constant SALT = keccak256("salt");
 
+    uint8 constant A = 0;
+    uint8 constant B = 1;
+
     function setUp() public {
-        vm.warp(1_000_000);
-        vm.startPrank(owner);
-        club = new WAB();
-        club.setWeightClass(CLASS, _class(MIN_BET, MAX_BET, 500));
-        club.setOperator(operator);
-        club.setTreasury(treasury);
+        vm.warp(1_800_000_000);
+        wab = new WAB();
+        wab.setWeightClass(0, _class(0.01 ether, 0.1 ether, 1 ether, 0.5 ether));
+        // a loose class for edge cases: tiny bankroll, big trades
+        wab.setWeightClass(1, _class(0.01 ether, 5 ether, 0.2 ether, 0.5 ether));
+        wab.setOperator(operator);
+        wab.fundHouse{value: 3 ether}();
+        vm.startPrank(operator);
+        fA = wab.registerFighter(owner, 0, keccak256("kiln"));
+        fB = wab.registerFighter(owner, 0, keccak256("obsidian"));
         vm.stopPrank();
+        for (uint256 i; i < 4; ++i) {
+            vm.deal([alice, bob, carol, outsider][i], 100 ether);
+        }
     }
 
-    function _class(uint96 minBet, uint96 maxBet, uint16 rakeBps) internal pure returns (WAB.WeightClass memory) {
+    receive() external payable {}
+
+    // ------------------------------------------------------------ helpers
+
+    function _class(uint96 minTrade, uint96 maxTrade, uint96 bankroll, uint96 b)
+        internal
+        pure
+        returns (WAB.WeightClass memory)
+    {
         return WAB.WeightClass({
-            minBet: minBet,
-            maxBet: maxBet,
-            rakeBps: rakeBps,
-            voteDuration: VOTE,
-            settleGrace: GRACE,
+            minTrade: minTrade,
+            maxTrade: maxTrade,
+            bankroll: bankroll,
+            liquidity: b,
+            feeBps: 200,
+            tradeWindow: 45,
+            voteDuration: 45,
+            settleGrace: 300,
             active: true,
             configHash: bytes32(0)
         });
     }
 
-    function _fighters(uint256 n) internal returns (uint32[] memory ids) {
-        ids = new uint32[](n);
-        vm.startPrank(operator);
-        for (uint256 i; i < n; ++i) {
-            ids[i] = club.registerFighter(house, CLASS, keccak256(abi.encode(i)));
+    function _create() internal returns (uint256 id) {
+        return _createIn(0, fA, fB);
+    }
+
+    function _createIn(uint8 classId, uint32 a, uint32 b_) internal returns (uint256 id) {
+        vm.prank(operator);
+        id = wab.createMatch(classId, a, b_, keccak256("task"), uint40(block.timestamp + 60));
+    }
+
+    function _buy(address who, uint256 id, uint8 side, uint256 value) internal returns (uint256) {
+        vm.prank(who);
+        return wab.buy{value: value}(id, side, 0);
+    }
+
+    function _commit(uint256 id, uint8 round, bool swapped, uint8 tie) internal pure returns (bytes32) {
+        return keccak256(abi.encode(id, round, swapped, tie, SALT));
+    }
+
+    /// Fight -> vote -> resolve one round. votesForA/B are cast by the given voters on the right blind labels.
+    function _round(uint256 id, bool swapped, uint8 tie, address[] memory forA, address[] memory forB) internal {
+        WAB.Match memory m = wab.matches(id);
+        vm.warp(m.tradeEnd);
+        uint8 round = m.round + 1;
+        vm.prank(operator);
+        wab.openVoting(id, _commit(id, round, swapped, tie), keccak256("pitches"));
+        uint8 labelA = swapped ? 1 : 0;
+        for (uint256 i; i < forA.length; ++i) {
+            vm.prank(forA[i]);
+            wab.vote(id, labelA);
         }
+        for (uint256 i; i < forB.length; ++i) {
+            vm.prank(forB[i]);
+            wab.vote(id, 1 - labelA);
+        }
+        vm.warp(wab.matches(id).voteEnd);
+        vm.prank(operator);
+        wab.resolveRound(id, swapped, tie, SALT);
+    }
+
+    function _one(address x) internal pure returns (address[] memory r) {
+        r = new address[](1);
+        r[0] = x;
+    }
+
+    function _none() internal pure returns (address[] memory r) {}
+
+    /// Contract MON = free house + everything backing live or unpaid matches.
+    function _assertAccounting(uint256[] memory ids, uint256 outstanding) internal view {
+        uint256 live;
+        for (uint256 i; i < ids.length; ++i) {
+            WAB.Match memory m = wab.matches(ids[i]);
+            if (m.phase == WAB.Phase.Open || m.phase == WAB.Phase.Voting) live += m.pool + m.fees;
+        }
+        assertEq(address(wab).balance, wab.houseBalance() + live + outstanding, "accounting");
+    }
+
+    // ------------------------------------------------------- pricing
+
+    function test_StartsAtFiftyFifty() public {
+        uint256 id = _create();
+        assertEq(wab.priceA(id), 0.5e18);
+        assertEq(wab.stageOf(id), 1);
+        assertTrue(wab.isTradingOpen(id));
+        assertEq(wab.houseBalance(), 2 ether, "bankroll locked from house");
+    }
+
+    function test_BuyMatchesReferenceMath() public {
+        uint256 id = _create();
+        (uint256 qShares, uint256 qFee) = wab.quoteBuy(id, A, 0.1 ether);
+        uint256 shares = _buy(alice, id, A, 0.1 ether);
+        // reference values computed independently (Python, float64)
+        assertApproxEqRel(shares, 0.1799038496e18, 1e12, "shares");
+        assertEq(qFee, 0.002 ether, "fee is 2% at 50/50");
+        assertEq(shares, qShares, "quote equals execution");
+        assertApproxEqRel(wab.priceA(id), 0.588994e18, 1e13, "price moved up");
+        (uint128 sa,,,,) = wab.positions(id, alice);
+        assertEq(sa, shares);
+    }
+
+    function test_BuyingBPushesPriceDownSymmetrically() public {
+        uint256 id = _create();
+        uint256 sB = _buy(bob, id, B, 0.1 ether);
+        assertApproxEqRel(sB, 0.1799038496e18, 1e12);
+        assertApproxEqRel(wab.priceA(id), 1e18 - 0.588994e18, 1e13);
+    }
+
+    function test_RoundTripCostsOnlyFees() public {
+        uint256 id = _create();
+        uint256 shares = _buy(alice, id, A, 0.1 ether);
+        uint256 before = alice.balance;
+        vm.prank(alice);
+        uint256 proceeds = wab.sell(id, A, shares, 0);
+        assertEq(alice.balance - before, proceeds);
+        assertApproxEqRel(proceeds, 0.0961020921e18, 1e12, "matches reference");
+        assertApproxEqAbs(wab.priceA(id), 0.5e18, 1e9, "price back to 50/50");
+    }
+
+    function test_SlippageGuards() public {
+        uint256 id = _create();
+        (uint256 q,) = wab.quoteBuy(id, A, 0.1 ether);
+        vm.prank(alice);
+        vm.expectRevert(WAB.Slippage.selector);
+        wab.buy{value: 0.1 ether}(id, A, q + 1);
+        uint256 shares = _buy(alice, id, A, 0.1 ether);
+        (uint256 out,) = wab.quoteSell(id, A, shares);
+        vm.prank(alice);
+        vm.expectRevert(WAB.Slippage.selector);
+        wab.sell(id, A, shares, out + 1);
+    }
+
+    function test_TradeLimits() public {
+        uint256 id = _create();
+        vm.startPrank(alice);
+        vm.expectRevert(WAB.TradeOutOfRange.selector);
+        wab.buy{value: 0.009 ether}(id, A, 0);
+        vm.expectRevert(WAB.TradeOutOfRange.selector);
+        wab.buy{value: 0.11 ether}(id, A, 0);
+        vm.expectRevert(WAB.BadSide.selector);
+        wab.buy{value: 0.05 ether}(id, 2, 0);
+        vm.expectRevert(WAB.NotEnoughShares.selector);
+        wab.sell(id, A, 1, 0);
         vm.stopPrank();
     }
 
-    function _round(uint256 n) internal returns (uint256 roundId) {
-        uint32[] memory ids = _fighters(n);
-        vm.prank(operator);
-        roundId = club.createRound(CLASS, ids, keccak256("task"), uint40(block.timestamp + 100));
+    // ----------------------------------------- the five-stage flow
+
+    /// The user story: bet at 50/50, your robot wins round 1, the price jumps to 75%, you cash out at a profit.
+    function test_CashOutAfterWinningRoundOne() public {
+        uint256 id = _create();
+        uint256 shares = _buy(alice, id, A, 0.1 ether);
+        _buy(bob, id, B, 0.05 ether);
+
+        _round(id, false, A, _one(alice), _none());
+        assertEq(wab.stageOf(id), 3, "aspects round next");
+        assertApproxEqAbs(wab.priceA(id), 0.75e18, 1e9, "re-anchored to 75%");
+        assertTrue(wab.isTradingOpen(id), "trading reopened");
+
+        (uint256 quoted,) = wab.quoteSell(id, A, shares);
+        vm.prank(alice);
+        uint256 proceeds = wab.sell(id, A, shares, 0);
+        assertEq(proceeds, quoted);
+        assertGt(proceeds, 0.1 ether, "cashed out at a profit");
     }
 
-    function _bettor(string memory name) internal returns (address a) {
-        a = makeAddr(name);
-        vm.deal(a, 100 ether);
+    function test_LateBuyerGetsFewerShares() public {
+        uint256 id = _create();
+        uint256 early = _buy(alice, id, A, 0.1 ether);
+        _round(id, false, A, _one(alice), _none());
+        uint256 late = _buy(carol, id, A, 0.1 ether);
+        assertLt(late, early);
+        assertApproxEqRel(late, 0.1274472125e18, 2e15, "reference at 75%, after alice's impact was reset");
     }
 
-    function _bet(address user, uint256 roundId, uint8 idx, uint256 amount) internal {
-        vm.prank(user);
-        club.enter{value: amount}(roundId, idx);
-    }
+    function test_TwoNilEndsMatchAndPaysOneMonPerShare() public {
+        uint256 id = _create();
+        uint256 sA = _buy(alice, id, A, 0.1 ether);
+        _buy(bob, id, B, 0.1 ether);
+        address[] memory both = new address[](2);
+        both[0] = alice;
+        both[1] = bob;
 
-    function _identity(uint256 n) internal pure returns (uint8[] memory xs) {
-        xs = new uint8[](n);
-        for (uint256 i; i < n; ++i) {
-            xs[i] = uint8(i);
-        }
-    }
+        _round(id, false, B, both, _none()); // 2-0 votes for A
+        _round(id, true, B, _one(alice), _none()); // labels swapped: alice still votes for A's pitch
 
-    function _arr(uint8 a, uint8 b, uint8 c, uint8 d) internal pure returns (uint8[] memory xs) {
-        xs = new uint8[](4);
-        (xs[0], xs[1], xs[2], xs[3]) = (a, b, c, d);
-    }
-
-    function _commit(uint256 roundId, uint8[] memory labelToIndex, uint8[] memory judgeRank)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encode(roundId, labelToIndex, judgeRank, SALT));
-    }
-
-    function _lockAndOpen(uint256 roundId, uint8[] memory labelToIndex, uint8[] memory judgeRank) internal {
-        vm.warp(club.rounds(roundId).lockTime);
-        vm.prank(operator);
-        club.openVoting(roundId, _commit(roundId, labelToIndex, judgeRank), keccak256("pitches"));
-    }
-
-    function _settle(uint256 roundId, uint8[] memory labelToIndex, uint8[] memory judgeRank) internal {
-        vm.warp(club.rounds(roundId).voteEnd);
-        vm.prank(operator);
-        club.settle(roundId, labelToIndex, judgeRank, SALT);
-    }
-
-    function _vote(address user, uint256 roundId, uint8 label) internal {
-        vm.prank(user);
-        club.vote(roundId, label);
-    }
-
-    function test_workedExample_payoutMatchesSpec() public {
-        uint256 id = _round(4);
-        address alice = _bettor("alice");
-        address bob = _bettor("bob");
-        _bet(alice, id, 0, 0.5 ether);
-        _bet(bob, id, 0, 0.5 ether);
-        _bet(_bettor("c"), id, 1, 2 ether);
-        _bet(_bettor("d"), id, 2, 3 ether);
-        _bet(_bettor("e"), id, 3, 4 ether);
-        assertEq(club.rounds(id).totalPool, 10 ether);
-
-        uint8[] memory perm = _identity(4);
-        _lockAndOpen(id, perm, perm);
-        _vote(alice, id, 0);
-        _settle(id, perm, perm);
-
-        WAB.Round memory r = club.rounds(id);
-        assertEq(r.winnerIndex, 0);
-        assertEq(r.rake, 0.5 ether);
-        assertEq(club.accruedRake(), 0.5 ether);
+        WAB.Match memory m = wab.matches(id);
+        assertEq(uint8(m.phase), uint8(WAB.Phase.Resolved), "MVP round skipped");
+        assertEq(m.winsA, 2);
+        assertEq(m.round, 2);
+        assertEq(wab.stageOf(id), 5);
+        (uint32 w,,,,) = _fighter(fA);
+        (, uint32 l,,,) = _fighter(fB);
+        assertEq(w, 1);
+        assertEq(l, 1);
 
         uint256 before = alice.balance;
         vm.prank(alice);
-        club.claim(id);
-        assertEq(alice.balance - before, 4.75 ether);
+        assertEq(wab.claim(id), sA);
+        assertEq(alice.balance - before, sA, "exactly 1 MON per share");
 
-        before = bob.balance;
         vm.prank(bob);
-        club.claim(id);
-        assertEq(bob.balance - before, 4.75 ether);
+        vm.expectRevert(WAB.NothingToClaim.selector);
+        wab.claim(id);
+        vm.prank(alice);
+        vm.expectRevert(WAB.AlreadySettled.selector);
+        wab.claim(id);
 
-        vm.prank(treasury);
-        club.withdrawRake(0.5 ether);
-        assertEq(treasury.balance, 0.5 ether);
-        assertEq(address(club).balance, 0);
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = id;
+        _assertAccounting(ids, 0);
     }
 
-    function test_enter_emitsPostBetPools() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(_bettor("b"), id, 1, 1 ether);
-        vm.expectEmit(address(club));
-        emit WAB.Entered(id, a, 0, 0.3 ether, 0.3 ether, 1.3 ether);
-        _bet(a, id, 0, 0.3 ether);
+    function test_OneAllGoesToMvp() public {
+        uint256 id = _create();
+        _buy(alice, id, A, 0.1 ether);
+        _buy(bob, id, B, 0.1 ether);
+        _round(id, false, A, _one(alice), _none());
+        _round(id, false, A, _none(), _one(bob));
+        assertApproxEqAbs(wab.priceA(id), 0.5e18, 1e9, "level again");
+        assertEq(wab.stageOf(id), 4, "MVP round");
+        _round(id, false, A, _none(), _one(bob));
+        WAB.Match memory m = wab.matches(id);
+        assertEq(uint8(m.phase), uint8(WAB.Phase.Resolved));
+        assertEq(m.winner, B);
+        assertEq(m.round, 3);
     }
 
-    function test_enter_topUpSameFighterAccumulates() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 1, 0.1 ether);
-        _bet(a, id, 1, 0.4 ether);
-        (uint128 amount, uint8 idx,,) = club.entries(id, a);
-        assertEq(amount, 0.5 ether);
-        assertEq(idx, 1);
-        assertEq(club.poolByIndex(id, 1), 0.5 ether);
+    function test_ReanchorIgnoresPriorTradingImpact() public {
+        uint256 id = _create();
+        for (uint256 i; i < 5; ++i) {
+            _buy(carol, id, B, 0.1 ether); // pushes A well below 50%
+        }
+        assertLt(wab.priceA(id), 0.2e18);
+        _round(id, false, A, _one(carol), _none()); // carol votes A anyway
+        assertApproxEqAbs(wab.priceA(id), 0.75e18, 1e9);
     }
 
-    function test_enter_topUpDifferentFighterReverts() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, 0.1 ether);
-        vm.prank(a);
-        vm.expectRevert(WAB.DifferentFighter.selector);
-        club.enter{value: 0.1 ether}(id, 1);
+    // --------------------------------------------- opening odds
+
+    /// Plays a whole match with nobody voting, so the committed tie-winner takes both rounds.
+    function _quickMatch(uint32 a, uint32 b_, uint8 winner) internal {
+        uint256 id = _createIn(0, a, b_);
+        _round(id, false, winner, _none(), _none());
+        _round(id, false, winner, _none(), _none());
     }
 
-    function test_enter_belowMinReverts() public {
-        uint256 id = _round(2);
-        vm.prank(_bettor("a"));
-        vm.expectRevert(WAB.BetOutOfRange.selector);
-        club.enter{value: MIN_BET - 1}(id, 0);
+    function test_NewFightersOpenAtFiftyFifty() public view {
+        assertEq(wab.roundOddsFor(fA, fB), 0.5e18);
+        assertEq(wab.openingPriceA(fA, fB), 0.5e18);
     }
 
-    function test_enter_aboveMaxReverts() public {
-        uint256 id = _round(2);
-        vm.prank(_bettor("a"));
-        vm.expectRevert(WAB.BetOutOfRange.selector);
-        club.enter{value: MAX_BET + 1}(id, 0);
+    function test_OpeningOddsComeFromFightHistory() public {
+        vm.prank(operator);
+        uint32 fC = wab.registerFighter(owner, 0, bytes32(0));
+        _quickMatch(fA, fB, A); // A is now 1-0, C is 0-0
+
+        // A: (1+1)/(1+2) = 2/3, C: 1/2. log5 -> 2/3 per round; best of 3 -> q^2(3-2q) = 20/27
+        assertApproxEqAbs(wab.roundOddsFor(fA, fC), 666666666666666666, 1e3);
+        uint256 id = _createIn(0, fA, fC);
+        assertApproxEqRel(wab.priceA(id), 0.74074074074074074e18, 1e12, "favourite opens at 74%");
+        assertApproxEqRel(wab.openingPriceA(fC, fA), 0.259259259259259259e18, 1e12, "mirror image");
+
+        _buy(alice, id, A, 0.05 ether);
+        _buy(bob, id, B, 0.05 ether);
+        _round(id, false, A, _one(alice), _none());
+        assertApproxEqRel(wab.priceA(id), 0.888888888888888888e18, 1e12, "1-0 up: 1-(1-q)^2");
+        _round(id, false, A, _none(), _one(bob));
+        assertApproxEqRel(wab.priceA(id), 0.666666666666666666e18, 1e12, "1-1: back to q");
     }
 
-    function test_enter_topUpPastMaxReverts() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, MAX_BET);
-        vm.prank(a);
-        vm.expectRevert(WAB.BetOutOfRange.selector);
-        club.enter{value: 1}(id, 0);
+    function test_OpeningOddsAreClamped() public {
+        _quickMatch(fA, fB, A);
+        _quickMatch(fA, fB, A); // A 2-0, B 0-2 -> raw log5 0.9
+        assertEq(wab.roundOddsFor(fA, fB), 0.8e18);
+        assertEq(wab.roundOddsFor(fB, fA), 0.2e18);
+        assertApproxEqRel(wab.openingPriceA(fA, fB), 0.896e18, 1e12);
     }
 
-    function test_enter_zeroValueReverts() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, MIN_BET);
-        vm.prank(a);
-        vm.expectRevert(WAB.ZeroValue.selector);
-        club.enter{value: 0}(id, 0);
+    function test_UnderdogPaysMoreShares() public {
+        _quickMatch(fA, fB, A);
+        uint256 id = _create(); // A favourite
+        uint256 onFav = _buy(alice, id, A, 0.05 ether);
+        uint256 onDog = _buy(bob, id, B, 0.05 ether);
+        assertGt(onDog, onFav, "same MON buys more of the underdog");
     }
 
-    function test_enter_badFighterIndexReverts() public {
-        uint256 id = _round(2);
-        vm.prank(_bettor("a"));
-        vm.expectRevert(WAB.BadFighterIndex.selector);
-        club.enter{value: MIN_BET}(id, 2);
-    }
+    // ------------------------------------------------------ windows
 
-    function test_enter_afterLockReverts() public {
-        uint256 id = _round(2);
-        vm.warp(club.rounds(id).lockTime);
-        vm.prank(_bettor("a"));
-        vm.expectRevert(WAB.BettingClosed.selector);
-        club.enter{value: MIN_BET}(id, 0);
-    }
+    function test_TradingClosedWhileFightingAndVoting() public {
+        uint256 id = _create();
+        _buy(alice, id, A, 0.05 ether);
+        vm.warp(block.timestamp + 60);
+        assertFalse(wab.isTradingOpen(id));
+        assertEq(wab.stageOf(id), 2, "fighters work on the elevator pitch");
+        vm.prank(bob);
+        vm.expectRevert(WAB.TradingClosed.selector);
+        wab.buy{value: 0.05 ether}(id, A, 0);
 
-    function test_enter_unknownRoundReverts() public {
-        vm.prank(_bettor("a"));
+        vm.prank(operator);
+        wab.openVoting(id, _commit(id, 1, false, A), bytes32(0));
+        vm.prank(bob);
         vm.expectRevert(WAB.WrongPhase.selector);
-        club.enter{value: MIN_BET}(42, 0);
-    }
-
-    function test_enter_duringVotingReverts() public {
-        uint256 id = _round(2);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        vm.prank(_bettor("a"));
+        wab.buy{value: 0.05 ether}(id, A, 0);
+        vm.prank(alice);
         vm.expectRevert(WAB.WrongPhase.selector);
-        club.enter{value: MIN_BET}(id, 0);
+        wab.sell(id, A, 1, 0);
     }
 
-    function test_roundSnapshotsClassAgainstOwnerEdits() public {
-        uint256 id = _round(2);
-        vm.prank(owner);
-        club.setWeightClass(CLASS, _class(1 ether, 10 ether, 1000));
-
-        address a = _bettor("a");
-        _bet(a, id, 0, MIN_BET);
-        vm.prank(a);
-        vm.expectRevert(WAB.BetOutOfRange.selector);
-        club.enter{value: MAX_BET}(id, 0);
-
-        _bet(_bettor("b"), id, 1, 1 ether);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _settle(id, _identity(2), _identity(2));
-        assertEq(club.rounds(id).rake, uint256(1.1 ether) * 500 / 10_000);
-    }
-
-    function test_paused_blocksCreateRoundAndEnterOnly() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        address b = _bettor("b");
-        _bet(a, id, 0, 1 ether);
-        _bet(b, id, 1, 1 ether);
-        uint32[] memory ids = _fighters(2);
-
-        vm.prank(owner);
-        club.setPaused(true);
-
+    function test_OpenVotingTooEarly() public {
+        uint256 id = _create();
         vm.prank(operator);
-        vm.expectRevert(WAB.Paused.selector);
-        club.createRound(CLASS, ids, bytes32(0), uint40(block.timestamp + 100));
-
-        vm.prank(a);
-        vm.expectRevert(WAB.Paused.selector);
-        club.enter{value: 1 ether}(id, 0);
-
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _vote(a, id, 0);
-        _settle(id, _identity(2), _identity(2));
-        vm.prank(a);
-        club.claim(id);
-        uint256 rake = club.accruedRake();
-        vm.prank(treasury);
-        club.withdrawRake(rake);
-    }
-
-    function test_paused_doesNotBlockCancelOrRefund() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, 1 ether);
-        vm.prank(owner);
-        club.setPaused(true);
-        vm.prank(operator);
-        club.cancel(id);
-        vm.prank(a);
-        club.refund(id);
-        assertEq(a.balance, 100 ether);
-    }
-
-    function test_createRound_validatesInputs() public {
-        uint32[] memory one = _fighters(1);
-        uint32[] memory nine = _fighters(9);
-        uint32[] memory two = _fighters(2);
-        uint40 lock = uint40(block.timestamp + 100);
-
-        vm.startPrank(operator);
-        vm.expectRevert(WAB.BadFighterCount.selector);
-        club.createRound(CLASS, one, bytes32(0), lock);
-        vm.expectRevert(WAB.BadFighterCount.selector);
-        club.createRound(CLASS, nine, bytes32(0), lock);
-
-        uint32[] memory dup = new uint32[](2);
-        (dup[0], dup[1]) = (two[0], two[0]);
-        vm.expectRevert(WAB.DuplicateFighter.selector);
-        club.createRound(CLASS, dup, bytes32(0), lock);
-
-        uint32[] memory unknown = new uint32[](2);
-        (unknown[0], unknown[1]) = (two[0], 999);
-        vm.expectRevert(WAB.UnknownFighter.selector);
-        club.createRound(CLASS, unknown, bytes32(0), lock);
-
-        vm.expectRevert(WAB.BadLockTime.selector);
-        club.createRound(CLASS, two, bytes32(0), uint40(block.timestamp));
-
-        vm.expectRevert(WAB.ClassInactive.selector);
-        club.createRound(7, two, bytes32(0), lock);
-        vm.stopPrank();
-
-        vm.prank(owner);
-        club.setWeightClass(1, _class(MIN_BET, MAX_BET, 500));
-        vm.prank(operator);
-        vm.expectRevert(WAB.FighterClassMismatch.selector);
-        club.createRound(1, two, bytes32(0), lock);
-
-        vm.prank(operator);
-        club.createRound(CLASS, two, bytes32(0), lock);
-    }
-
-    function test_createRound_acceptsEightFighters() public {
-        uint256 id = _round(8);
-        assertEq(club.rounds(id).fighterCount, 8);
-        _bet(_bettor("a"), id, 7, MIN_BET);
-    }
-
-    function test_phaseOf_derivesFightingAfterLock() public {
-        uint256 id = _round(2);
-        assertEq(uint8(club.phaseOf(id)), uint8(WAB.Phase.Open));
-        vm.warp(club.rounds(id).lockTime);
-        assertEq(uint8(club.phaseOf(id)), uint8(WAB.Phase.Fighting));
-        assertEq(uint8(club.rounds(id).phase), uint8(WAB.Phase.Open));
-    }
-
-    function test_settleDeadline_beforeAndAfterOpenVoting() public {
-        uint256 id = _round(2);
-        WAB.Round memory r = club.rounds(id);
-        assertEq(r.settleDeadline, r.lockTime + 600 + VOTE + GRACE);
-
-        vm.warp(r.lockTime + 250);
-        vm.prank(operator);
-        club.openVoting(id, _commit(id, _identity(2), _identity(2)), keccak256("p"));
-        r = club.rounds(id);
-        assertEq(r.voteEnd, block.timestamp + VOTE);
-        assertEq(r.settleDeadline, block.timestamp + VOTE + GRACE);
-        assertEq(uint8(r.phase), uint8(WAB.Phase.Voting));
-    }
-
-    function test_openVoting_rejectsEarlyExpiredZeroAndRepeat() public {
-        uint256 id = _round(2);
-        bytes32 commit = _commit(id, _identity(2), _identity(2));
-
-        vm.startPrank(operator);
         vm.expectRevert(WAB.TooEarly.selector);
-        club.openVoting(id, commit, bytes32(0));
-
-        vm.warp(club.rounds(id).lockTime);
-        vm.expectRevert(WAB.ZeroCommit.selector);
-        club.openVoting(id, bytes32(0), bytes32(0));
-
-        uint256 snap = vm.snapshotState();
-        vm.warp(club.rounds(id).settleDeadline + 1);
-        vm.expectRevert(WAB.Expired.selector);
-        club.openVoting(id, commit, bytes32(0));
-        vm.revertToState(snap);
-
-        club.openVoting(id, commit, bytes32(0));
-        vm.expectRevert(WAB.WrongPhase.selector);
-        club.openVoting(id, commit, bytes32(0));
-        vm.stopPrank();
+        wab.openVoting(id, _commit(id, 1, false, A), bytes32(0));
     }
 
-    function test_vote_requiresEntry() public {
-        uint256 id = _round(2);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        vm.prank(stranger);
-        vm.expectRevert(WAB.NoEntry.selector);
-        club.vote(id, 0);
-    }
+    // ------------------------------------------------------- voting
 
-    function test_vote_onlyOnce() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, MIN_BET);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _vote(a, id, 1);
-        vm.prank(a);
-        vm.expectRevert(WAB.AlreadyVoted.selector);
-        club.vote(id, 0);
-        assertEq(club.votesByLabel(id, 1), 1);
-        assertEq(club.votesByLabel(id, 0), 0);
-    }
+    function test_VotingRules() public {
+        uint256 id = _create();
+        _buy(alice, id, A, 0.05 ether);
+        vm.warp(block.timestamp + 60);
+        vm.prank(operator);
+        wab.openVoting(id, _commit(id, 1, false, A), bytes32(0));
 
-    function test_vote_rejectsBadLabelWrongPhaseAndLate() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, MIN_BET);
+        vm.prank(outsider);
+        vm.expectRevert(WAB.NoPosition.selector);
+        wab.vote(id, 0);
 
-        vm.prank(a);
-        vm.expectRevert(WAB.WrongPhase.selector);
-        club.vote(id, 0);
-
-        _lockAndOpen(id, _identity(2), _identity(2));
-        vm.prank(a);
+        vm.startPrank(alice);
         vm.expectRevert(WAB.BadLabel.selector);
-        club.vote(id, 2);
+        wab.vote(id, 2);
+        wab.vote(id, 1);
+        vm.expectRevert(WAB.AlreadyVoted.selector);
+        wab.vote(id, 0);
+        vm.stopPrank();
+        (uint32 l0, uint32 l1) = wab.votes(id, 1);
+        assertEq(l0, 0);
+        assertEq(l1, 1);
+    }
 
-        vm.warp(club.rounds(id).voteEnd);
-        vm.prank(a);
+    function test_VoteAfterDeadlineRejected() public {
+        uint256 id = _create();
+        _buy(alice, id, A, 0.05 ether);
+        vm.warp(block.timestamp + 60);
+        vm.prank(operator);
+        wab.openVoting(id, _commit(id, 1, false, A), bytes32(0));
+        vm.warp(block.timestamp + 45);
+        vm.prank(alice);
         vm.expectRevert(WAB.VotingClosed.selector);
-        club.vote(id, 0);
+        wab.vote(id, 0);
     }
 
-    function test_vote_isNotStakeWeighted() public {
-        uint256 id = _round(2);
-        address whale = _bettor("whale");
-        address s1 = _bettor("s1");
-        address s2 = _bettor("s2");
-        _bet(whale, id, 0, MAX_BET);
-        _bet(s1, id, 1, MIN_BET);
-        _bet(s2, id, 1, MIN_BET);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _vote(whale, id, 0);
-        _vote(s1, id, 1);
-        _vote(s2, id, 1);
-        _settle(id, _identity(2), _identity(2));
-        assertEq(club.rounds(id).winnerIndex, 1);
-    }
-
-    function test_settle_mapsShuffledLabelsToFighters() public {
-        uint256 id = _round(4);
-        address[3] memory voters = [_bettor("a"), _bettor("b"), _bettor("c")];
-        for (uint256 i; i < 3; ++i) {
-            _bet(voters[i], id, 0, MIN_BET);
-        }
-        uint8[] memory labelToIndex = _arr(2, 3, 1, 0);
-        uint8[] memory judgeRank = _arr(0, 1, 2, 3);
-        _lockAndOpen(id, labelToIndex, judgeRank);
-        _vote(voters[0], id, 0);
-        _vote(voters[1], id, 0);
-        _vote(voters[2], id, 3);
-        _settle(id, labelToIndex, judgeRank);
-        assertEq(club.rounds(id).winnerIndex, 2);
-    }
-
-    function test_settle_tieGoesToBestJudgeRank() public {
-        uint256 id = _round(4);
-        address a = _bettor("a");
-        address b = _bettor("b");
-        _bet(a, id, 0, MIN_BET);
-        _bet(b, id, 0, MIN_BET);
-        uint8[] memory perm = _identity(4);
-        uint8[] memory judgeRank = _arr(3, 2, 1, 0);
-        _lockAndOpen(id, perm, judgeRank);
-        _vote(a, id, 1);
-        _vote(b, id, 2);
-        _settle(id, perm, judgeRank);
-        assertEq(club.rounds(id).winnerIndex, 2);
-    }
-
-    function test_settle_zeroVotesPicksJudgeTop() public {
-        uint256 id = _round(4);
-        uint8[] memory perm = _identity(4);
-        uint8[] memory judgeRank = _arr(3, 0, 1, 2);
-        _bet(_bettor("a"), id, 3, MIN_BET);
-        _lockAndOpen(id, perm, judgeRank);
-        _settle(id, perm, judgeRank);
-        assertEq(club.rounds(id).winnerIndex, 3);
-    }
-
-    function test_settle_updatesWinsAndLosses() public {
-        uint32[] memory ids = _fighters(3);
+    function test_BlindLabelsAreMappedByReveal() public {
+        uint256 id = _create();
+        _buy(alice, id, A, 0.05 ether);
+        vm.warp(block.timestamp + 60);
         vm.prank(operator);
-        uint256 id = club.createRound(CLASS, ids, bytes32(0), uint40(block.timestamp + 100));
-        uint8[] memory perm = _identity(3);
-        uint8[] memory judgeRank = new uint8[](3);
-        (judgeRank[0], judgeRank[1], judgeRank[2]) = (1, 0, 2);
-        _lockAndOpen(id, perm, judgeRank);
-        vm.expectEmit(address(club));
-        emit WAB.Settled(id, 1, ids[1], perm, 0, 0, true);
-        _settle(id, perm, judgeRank);
-
-        (,, uint32 w0, uint32 l0,) = club.fighters(ids[0]);
-        (,, uint32 w1, uint32 l1,) = club.fighters(ids[1]);
-        (,, uint32 w2, uint32 l2,) = club.fighters(ids[2]);
-        assertEq(abi.encode(w0, l0, w1, l1, w2, l2), abi.encode(0, 1, 1, 0, 0, 1));
+        wab.openVoting(id, _commit(id, 1, true, A), bytes32(0)); // label 0 = fighter B
+        vm.prank(alice);
+        wab.vote(id, 0);
+        vm.warp(wab.matches(id).voteEnd);
+        vm.prank(operator);
+        wab.resolveRound(id, true, A, SALT);
+        assertEq(wab.matches(id).winsB, 1, "label 0 counted for B");
     }
 
-    function test_settle_rejectsWrongReveal() public {
-        uint256 id = _round(2);
-        uint8[] memory perm = _identity(2);
-        _lockAndOpen(id, perm, perm);
-        vm.warp(club.rounds(id).voteEnd);
+    function test_TieAndEmptyVoteGoToCommittedTieWinner() public {
+        uint256 id = _create();
+        _buy(alice, id, A, 0.05 ether);
+        _buy(bob, id, B, 0.05 ether);
+        _round(id, false, B, _one(alice), _one(bob)); // 1-1 tie
+        assertEq(wab.matches(id).winsB, 1);
+        _round(id, false, A, _none(), _none()); // nobody voted
+        assertEq(wab.matches(id).winsA, 1);
+    }
+
+    function test_RevealMustMatchCommit() public {
+        uint256 id = _create();
+        _buy(alice, id, A, 0.05 ether);
+        vm.warp(block.timestamp + 60);
+        vm.prank(operator);
+        wab.openVoting(id, _commit(id, 1, false, A), bytes32(0));
+        vm.warp(block.timestamp + 45);
         vm.startPrank(operator);
         vm.expectRevert(WAB.BadReveal.selector);
-        club.settle(id, perm, perm, keccak256("other salt"));
-
-        uint8[] memory swapped = new uint8[](2);
-        (swapped[0], swapped[1]) = (1, 0);
+        wab.resolveRound(id, true, A, SALT);
         vm.expectRevert(WAB.BadReveal.selector);
-        club.settle(id, swapped, perm, SALT);
+        wab.resolveRound(id, false, B, SALT);
+        vm.expectRevert(WAB.BadReveal.selector);
+        wab.resolveRound(id, false, A, keccak256("other"));
         vm.stopPrank();
     }
 
-    function test_settle_rejectsNonPermutations() public {
-        uint8[3][4] memory bad = [[0, 0, 1], [0, 1, 3], [2, 1, 1], [1, 2, 2]];
-        for (uint256 k; k < bad.length; ++k) {
-            uint8[] memory xs = new uint8[](3);
-            (xs[0], xs[1], xs[2]) = (bad[k][0], bad[k][1], bad[k][2]);
-            _expectSettleRevertsNotPermutation(xs, _identity(3));
-            _expectSettleRevertsNotPermutation(_identity(3), xs);
-        }
-        _expectSettleRevertsNotPermutation(_identity(2), _identity(3));
-        _expectSettleRevertsNotPermutation(_identity(3), _identity(4));
+    // ---------------------------------------------------- solvency
+
+    function test_RefusesBuysTheMatchCouldNotPay() public {
+        uint256 id = _createIn(1, _reg(1), _reg(1));
+        vm.prank(alice);
+        vm.expectRevert(WAB.MarketFull.selector);
+        wab.buy{value: 1 ether}(id, A, 0);
+        _buy(alice, id, A, 0.1 ether); // small trades still fine
     }
 
-    function _expectSettleRevertsNotPermutation(uint8[] memory labelToIndex, uint8[] memory judgeRank) internal {
-        uint256 id = _round(3);
-        _lockAndOpen(id, labelToIndex, judgeRank);
-        vm.warp(club.rounds(id).voteEnd);
-        vm.prank(operator);
-        vm.expectRevert(WAB.NotPermutation.selector);
-        club.settle(id, labelToIndex, judgeRank, SALT);
+    function test_SellCannotDrainOtherSidesPayout() public {
+        uint256 id = _createIn(1, _reg(1), _reg(1));
+        _buy(bob, id, B, 0.3 ether);
+        WAB.Match memory m = wab.matches(id);
+        assertGe(m.pool, m.sharesB);
+        uint256 sA = _buy(alice, id, A, 0.2 ether);
+        vm.prank(alice);
+        wab.sell(id, A, sA, 0);
+        m = wab.matches(id);
+        assertGe(m.pool, m.sharesB, "bob's shares still fully backed");
     }
 
-    function test_settle_rejectsEarlyLateAndWrongPhase() public {
-        uint256 id = _round(2);
-        uint8[] memory perm = _identity(2);
-
-        vm.prank(operator);
-        vm.expectRevert(WAB.WrongPhase.selector);
-        club.settle(id, perm, perm, SALT);
-
-        _lockAndOpen(id, perm, perm);
-        vm.prank(operator);
-        vm.expectRevert(WAB.TooEarly.selector);
-        club.settle(id, perm, perm, SALT);
-
-        uint256 snap = vm.snapshotState();
-        vm.warp(club.rounds(id).settleDeadline + 1);
-        vm.prank(operator);
-        vm.expectRevert(WAB.Expired.selector);
-        club.settle(id, perm, perm, SALT);
-        vm.revertToState(snap);
-
-        _settle(id, perm, perm);
-        vm.prank(operator);
-        vm.expectRevert(WAB.WrongPhase.selector);
-        club.settle(id, perm, perm, SALT);
-    }
-
-    function test_refundMode_whenNobodyBackedWinner() public {
-        uint256 id = _round(3);
-        address a = _bettor("a");
-        address b = _bettor("b");
-        _bet(a, id, 0, 1 ether);
-        _bet(b, id, 1, 2 ether);
-        uint8[] memory perm = _identity(3);
-        uint8[] memory judgeRank = new uint8[](3);
-        (judgeRank[0], judgeRank[1], judgeRank[2]) = (2, 0, 1);
-        _lockAndOpen(id, perm, judgeRank);
-        _settle(id, perm, judgeRank);
-
-        WAB.Round memory r = club.rounds(id);
-        assertEq(r.winnerIndex, 2);
-        assertEq(uint8(r.phase), uint8(WAB.Phase.Settled));
-        assertEq(r.rake, 0);
-        assertEq(club.accruedRake(), 0);
-
-        vm.prank(a);
-        vm.expectRevert(WAB.RefundMode.selector);
-        club.claim(id);
-
-        vm.prank(a);
-        club.refund(id);
-        vm.prank(b);
-        club.refund(id);
-        assertEq(a.balance, 100 ether);
-        assertEq(b.balance, 100 ether);
-        assertEq(address(club).balance, 0);
-    }
-
-    function test_refund_rejectedForNormalSettledRound() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, 1 ether);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _settle(id, _identity(2), _identity(2));
-        vm.prank(a);
-        vm.expectRevert(WAB.NotRefundable.selector);
-        club.refund(id);
-    }
-
-    function test_claim_rejectsLoserStrangerRepeatAndUnsettled() public {
-        uint256 id = _round(2);
-        address w = _bettor("w");
-        address l = _bettor("l");
-        _bet(w, id, 0, 1 ether);
-        _bet(l, id, 1, 1 ether);
-
-        vm.prank(w);
-        vm.expectRevert(WAB.WrongPhase.selector);
-        club.claim(id);
-
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _settle(id, _identity(2), _identity(2));
-
-        vm.prank(l);
-        vm.expectRevert(WAB.NotWinner.selector);
-        club.claim(id);
-        vm.prank(stranger);
-        vm.expectRevert(WAB.NotWinner.selector);
-        club.claim(id);
-
-        vm.prank(w);
-        club.claim(id);
-        vm.prank(w);
-        vm.expectRevert(WAB.AlreadyClaimed.selector);
-        club.claim(id);
-    }
-
-    function test_cancel_beforeVotingRefundsInFull() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, 1 ether);
-        vm.prank(operator);
-        club.cancel(id);
-        assertEq(uint8(club.rounds(id).phase), uint8(WAB.Phase.Cancelled));
-        vm.prank(a);
-        club.refund(id);
-        assertEq(a.balance, 100 ether);
-        vm.prank(a);
-        vm.expectRevert(WAB.AlreadyClaimed.selector);
-        club.refund(id);
-    }
-
-    function test_cancel_duringVotingRefundsInFull() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 1, 2 ether);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _vote(a, id, 1);
-        vm.expectEmit(address(club));
-        emit WAB.RoundCancelled(id, operator);
-        vm.prank(operator);
-        club.cancel(id);
-        vm.prank(a);
-        club.refund(id);
-        assertEq(a.balance, 100 ether);
-    }
-
-    function test_cancel_rejectedAfterSettleAndTwice() public {
-        uint256 id = _round(2);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _settle(id, _identity(2), _identity(2));
-        vm.prank(operator);
-        vm.expectRevert(WAB.WrongPhase.selector);
-        club.cancel(id);
-
-        uint256 id2 = _round(2);
-        vm.startPrank(operator);
-        club.cancel(id2);
-        vm.expectRevert(WAB.WrongPhase.selector);
-        club.cancel(id2);
-        vm.stopPrank();
-    }
-
-    function test_refund_rejectedWithoutEntryOrBeforeCancel() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, 1 ether);
-        vm.prank(a);
-        vm.expectRevert(WAB.NotRefundable.selector);
-        club.refund(id);
-        vm.prank(operator);
-        club.cancel(id);
-        vm.prank(stranger);
-        vm.expectRevert(WAB.NoEntry.selector);
-        club.refund(id);
-    }
-
-    function test_cancelExpired_beforeVotingOpens() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, 1 ether);
-        uint40 deadline = club.rounds(id).settleDeadline;
-
-        vm.warp(deadline);
-        vm.prank(stranger);
-        vm.expectRevert(WAB.NotExpired.selector);
-        club.cancelExpired(id);
-
-        vm.warp(deadline + 1);
-        vm.expectEmit(address(club));
-        emit WAB.RoundCancelled(id, stranger);
-        vm.prank(stranger);
-        club.cancelExpired(id);
-        vm.prank(a);
-        club.refund(id);
-        assertEq(a.balance, 100 ether);
-    }
-
-    function test_cancelExpired_afterVotingOpens() public {
-        uint256 id = _round(2);
-        address a = _bettor("a");
-        _bet(a, id, 0, 1 ether);
-        vm.warp(club.rounds(id).lockTime + 500);
-        vm.prank(operator);
-        club.openVoting(id, _commit(id, _identity(2), _identity(2)), bytes32(0));
-        uint40 deadline = club.rounds(id).settleDeadline;
-
-        vm.warp(deadline);
-        vm.prank(stranger);
-        vm.expectRevert(WAB.NotExpired.selector);
-        club.cancelExpired(id);
-
-        vm.warp(deadline + 1);
-        vm.prank(stranger);
-        club.cancelExpired(id);
-        vm.prank(a);
-        club.refund(id);
-        assertEq(a.balance, 100 ether);
-    }
-
-    function test_cancelExpired_rejectedAfterSettle() public {
-        uint256 id = _round(2);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _settle(id, _identity(2), _identity(2));
-        vm.warp(club.rounds(id).settleDeadline + 1);
-        vm.prank(stranger);
-        vm.expectRevert(WAB.WrongPhase.selector);
-        club.cancelExpired(id);
-    }
-
-    function test_withdrawRake_cannotExceedAccrued() public {
-        uint256 id = _round(2);
-        _bet(_bettor("a"), id, 0, 1 ether);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _settle(id, _identity(2), _identity(2));
-        uint256 rake = club.accruedRake();
-        assertEq(rake, 0.05 ether);
-        vm.startPrank(treasury);
-        vm.expectRevert(WAB.InsufficientRake.selector);
-        club.withdrawRake(rake + 1);
-        club.withdrawRake(rake);
-        vm.stopPrank();
-        assertEq(treasury.balance, rake);
-    }
-
-    function test_setWeightClass_rejectsInvalidParams() public {
-        vm.startPrank(owner);
-        vm.expectRevert(WAB.InvalidClass.selector);
-        club.setWeightClass(1, _class(0, 1 ether, 500));
-        vm.expectRevert(WAB.InvalidClass.selector);
-        club.setWeightClass(1, _class(2 ether, 1 ether, 500));
-        vm.expectRevert(WAB.InvalidClass.selector);
-        club.setWeightClass(1, _class(1 ether, 1 ether, 1001));
-        vm.stopPrank();
-    }
-
-    function test_accessControl_ownerOnly() public {
-        WAB.WeightClass memory c = _class(MIN_BET, MAX_BET, 500);
-        address[2] memory notOwner = [operator, stranger];
-        for (uint256 i; i < notOwner.length; ++i) {
-            vm.startPrank(notOwner[i]);
-            vm.expectRevert(WAB.NotOwner.selector);
-            club.setWeightClass(1, c);
-            vm.expectRevert(WAB.NotOwner.selector);
-            club.setOperator(stranger);
-            vm.expectRevert(WAB.NotOwner.selector);
-            club.setTreasury(stranger);
-            vm.expectRevert(WAB.NotOwner.selector);
-            club.setPaused(true);
-            vm.stopPrank();
-        }
-    }
-
-    function test_accessControl_operatorOnly() public {
-        uint256 id = _round(2);
-        uint32[] memory ids = _fighters(2);
-        uint8[] memory perm = _identity(2);
-        address[2] memory notOperator = [owner, stranger];
-        for (uint256 i; i < notOperator.length; ++i) {
-            vm.startPrank(notOperator[i]);
-            vm.expectRevert(WAB.NotOperator.selector);
-            club.registerFighter(house, CLASS, bytes32(0));
-            vm.expectRevert(WAB.NotOperator.selector);
-            club.createRound(CLASS, ids, bytes32(0), uint40(block.timestamp + 100));
-            vm.expectRevert(WAB.NotOperator.selector);
-            club.openVoting(id, bytes32(uint256(1)), bytes32(0));
-            vm.expectRevert(WAB.NotOperator.selector);
-            club.settle(id, perm, perm, SALT);
-            vm.expectRevert(WAB.NotOperator.selector);
-            club.cancel(id);
-            vm.stopPrank();
-        }
-    }
-
-    function test_accessControl_treasuryOnly() public {
-        address[3] memory notTreasury = [owner, operator, stranger];
-        for (uint256 i; i < notTreasury.length; ++i) {
-            vm.prank(notTreasury[i]);
-            vm.expectRevert(WAB.NotTreasury.selector);
-            club.withdrawRake(0);
-        }
-    }
-
-    function test_rotatedRolesTakeEffect() public {
-        address newOp = makeAddr("newOp");
-        address newTreasury = makeAddr("newTreasury");
-        vm.startPrank(owner);
-        club.setOperator(newOp);
-        club.setTreasury(newTreasury);
-        vm.expectRevert(WAB.ZeroAddress.selector);
-        club.setOperator(address(0));
-        vm.expectRevert(WAB.ZeroAddress.selector);
-        club.setTreasury(address(0));
-        vm.stopPrank();
-
-        vm.prank(operator);
-        vm.expectRevert(WAB.NotOperator.selector);
-        club.registerFighter(house, CLASS, bytes32(0));
-        vm.prank(newOp);
-        club.registerFighter(house, CLASS, bytes32(0));
-
-        vm.prank(treasury);
-        vm.expectRevert(WAB.NotTreasury.selector);
-        club.withdrawRake(0);
-        vm.prank(newTreasury);
-        club.withdrawRake(0);
-    }
-
-    function test_reentrantClaimerIsPaidOnce() public {
-        uint256 id = _round(2);
-        ReentrantClaimer attacker = new ReentrantClaimer(club);
-        attacker.enter{value: 1 ether}(id, 0);
-        _bet(_bettor("b"), id, 1, 1 ether);
-        _bet(_bettor("c"), id, 0, 1 ether);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _settle(id, _identity(2), _identity(2));
-
-        attacker.claim();
-        assertTrue(attacker.reentryAttempted());
-        assertFalse(attacker.reentrySucceeded());
-        assertEq(address(attacker).balance, 1.425 ether);
-        vm.expectRevert(WAB.AlreadyClaimed.selector);
-        attacker.claim();
-    }
-
-    function test_reentrantRefunderIsPaidOnce() public {
-        uint256 id = _round(2);
-        ReentrantClaimer attacker = new ReentrantClaimer(club);
-        attacker.enter{value: 1 ether}(id, 0);
-        vm.prank(operator);
-        club.cancel(id);
-        attacker.refund();
-        assertTrue(attacker.reentryAttempted());
-        assertFalse(attacker.reentrySucceeded());
-        assertEq(address(attacker).balance, 1 ether);
-    }
-
-    function test_revertingReceiverCannotBlockOthers() public {
-        uint256 id = _round(2);
-        RejectingReceiver rejecter = new RejectingReceiver();
-        rejecter.enter{value: 1 ether}(club, id, 0);
-        address a = _bettor("a");
-        _bet(a, id, 0, 1 ether);
-        _lockAndOpen(id, _identity(2), _identity(2));
-        _settle(id, _identity(2), _identity(2));
-
-        vm.expectRevert(WAB.TransferFailed.selector);
-        rejecter.claim(club, id);
-        vm.prank(a);
-        club.claim(id);
-        assertEq(a.balance, 99 ether + 0.95 ether);
-    }
-
-    function testFuzz_claimsNeverExceedNetPool(uint256 seed, uint8 nFighters, uint8 nBettors) public {
-        uint256 n = bound(nFighters, 2, 8);
-        uint256 m = bound(nBettors, 1, 8);
-        uint256 id = _round(n);
-
-        address[] memory users = new address[](m);
-        for (uint256 i; i < m; ++i) {
-            users[i] = _bettor(string(abi.encode("u", i)));
+    function testFuzz_AlwaysSolventAndBalanced(uint256 seed) public {
+        uint256 id = _create();
+        address[3] memory who = [alice, bob, carol];
+        for (uint256 i; i < 30; ++i) {
             uint256 r = uint256(keccak256(abi.encode(seed, i)));
-            _bet(users[i], id, uint8(r % n), bound(r >> 8, MIN_BET, MAX_BET));
-        }
-
-        uint8[] memory labelToIndex = _shuffle(n, uint256(keccak256(abi.encode(seed, "labels"))));
-        uint8[] memory judgeRank = _shuffle(n, uint256(keccak256(abi.encode(seed, "judge"))));
-        _lockAndOpen(id, labelToIndex, judgeRank);
-        for (uint256 i; i < m; ++i) {
-            uint256 r = uint256(keccak256(abi.encode(seed, "vote", i)));
-            if (r % 3 != 0) _vote(users[i], id, uint8((r >> 8) % n));
-        }
-        _settle(id, labelToIndex, judgeRank);
-
-        WAB.Round memory round = club.rounds(id);
-        bool refundMode = club.poolByIndex(id, round.winnerIndex) == 0;
-        uint256 paid;
-        for (uint256 i; i < m; ++i) {
-            (uint128 amount, uint8 idx,,) = club.entries(id, users[i]);
-            uint256 before = users[i].balance;
-            vm.prank(users[i]);
-            if (refundMode) {
-                club.refund(id);
-            } else if (idx == round.winnerIndex) {
-                club.claim(id);
+            address u = who[r % 3];
+            uint8 side = uint8((r >> 8) % 2);
+            if ((r >> 16) % 3 == 0) {
+                (uint128 sa, uint128 sb,,,) = wab.positions(id, u);
+                uint256 held = side == 0 ? sa : sb;
+                if (held == 0) continue;
+                uint256 amt = held * (((r >> 24) % 100) + 1) / 100;
+                vm.prank(u);
+                try wab.sell(id, side, amt, 0) {} catch {}
             } else {
-                continue;
+                uint256 v = 0.01 ether + (r >> 32) % 0.09 ether;
+                vm.prank(u);
+                try wab.buy{value: v}(id, side, 0) {} catch {}
             }
-            paid += users[i].balance - before;
-            if (refundMode) assertEq(users[i].balance - before, amount);
+            WAB.Match memory m = wab.matches(id);
+            assertGe(m.pool, m.sharesA > m.sharesB ? m.sharesA : m.sharesB, "solvent");
         }
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = id;
+        _assertAccounting(ids, 0);
 
-        if (refundMode) {
-            assertEq(round.rake, 0);
-            assertEq(paid, round.totalPool);
-        } else {
-            assertEq(round.rake, uint256(round.totalPool) * 500 / 10_000);
-            assertLe(paid, round.totalPool - round.rake);
-            assertLe(round.totalPool - round.rake - paid, m);
+        // finish the match; after every winner claims, only free house MON remains
+        _round(id, false, uint8(seed % 2), _none(), _none());
+        _round(id, false, uint8(seed % 2), _none(), _none());
+        uint8 winner = wab.matches(id).winner;
+        for (uint256 i; i < 3; ++i) {
+            (uint128 sa, uint128 sb,,,) = wab.positions(id, who[i]);
+            if ((winner == 0 ? sa : sb) > 0) {
+                vm.prank(who[i]);
+                wab.claim(id);
+            }
         }
-        assertGe(address(club).balance, club.accruedRake());
+        assertEq(address(wab).balance, wab.houseBalance(), "all paid, rest back to house");
     }
 
-    function _shuffle(uint256 n, uint256 seed) internal pure returns (uint8[] memory xs) {
-        xs = _identity(n);
-        for (uint256 i = n - 1; i > 0; --i) {
-            uint256 j = uint256(keccak256(abi.encode(seed, i))) % (i + 1);
-            (xs[i], xs[j]) = (xs[j], xs[i]);
-        }
+    // -------------------------------------------------- cancellation
+
+    function test_StalledMatchRefundsNetDeposits() public {
+        uint256 id = _create();
+        _buy(alice, id, A, 0.1 ether);
+        uint256 sB = _buy(bob, id, B, 0.1 ether);
+        vm.prank(bob);
+        uint256 got = wab.sell(id, B, sB / 2, 0);
+
+        vm.expectRevert(WAB.NotExpired.selector);
+        wab.cancelExpired(id);
+        vm.warp(wab.matches(id).deadline + 1);
+        vm.prank(outsider);
+        wab.cancelExpired(id);
+
+        uint256 a0 = alice.balance;
+        vm.prank(alice);
+        wab.refund(id);
+        assertEq(alice.balance - a0, 0.1 ether, "alice gets everything back, fee included");
+        uint256 b0 = bob.balance;
+        vm.prank(bob);
+        wab.refund(id);
+        assertEq(bob.balance - b0, 0.1 ether - got, "bob gets what he put in minus what he took out");
+        vm.prank(bob);
+        vm.expectRevert(WAB.AlreadySettled.selector);
+        wab.refund(id);
+        assertEq(address(wab).balance, wab.houseBalance(), "rest returned to house");
+    }
+
+    // ------------------------------------------------- access + house
+
+    function test_RolesAndHouse() public {
+        vm.prank(alice);
+        vm.expectRevert(WAB.NotOperator.selector);
+        wab.createMatch(0, fA, fB, bytes32(0), uint40(block.timestamp + 60));
+        vm.prank(alice);
+        vm.expectRevert(WAB.NotOwner.selector);
+        wab.setWeightClass(0, _class(1, 2, 3, 4));
+        vm.prank(alice);
+        vm.expectRevert(WAB.NotTreasury.selector);
+        wab.withdrawHouse(1);
+
+        vm.prank(operator);
+        vm.expectRevert(WAB.SameFighter.selector);
+        wab.createMatch(0, fA, fA, bytes32(0), uint40(block.timestamp + 60));
+
+        _create();
+        _create();
+        _create();
+        vm.prank(operator);
+        vm.expectRevert(WAB.HouseTooSmall.selector);
+        wab.createMatch(0, fA, fB, bytes32(0), uint40(block.timestamp + 60));
+
+        wab.setPaused(true);
+        wab.fundHouse{value: 1 ether}();
+        vm.prank(operator);
+        vm.expectRevert(WAB.Paused.selector);
+        wab.createMatch(0, fA, fB, bytes32(0), uint40(block.timestamp + 60));
+
+        uint256 before = address(this).balance;
+        wab.withdrawHouse(1 ether);
+        assertEq(address(this).balance - before, 1 ether);
+        vm.expectRevert(WAB.InsufficientHouse.selector);
+        wab.withdrawHouse(1);
+    }
+
+    function test_ReentrantSellIsBlocked() public {
+        uint256 id = _create();
+        Reenter attacker = new Reenter(wab, id);
+        vm.deal(address(attacker), 1 ether);
+        attacker.buyIn();
+        vm.expectRevert(WAB.TransferFailed.selector);
+        attacker.cashOut();
+    }
+
+    // ------------------------------------------------------- utils
+
+    function _fighter(uint32 id) internal view returns (uint32 wins, uint32 losses, uint8, address, bytes32) {
+        (address o, uint8 c, uint32 w, uint32 l, bytes32 h) = wab.fighters(id);
+        return (w, l, c, o, h);
+    }
+
+    function _reg(uint8 classId) internal returns (uint32 id) {
+        vm.prank(operator);
+        id = wab.registerFighter(owner, classId, bytes32(0));
+    }
+}
+
+contract Reenter {
+    WAB wab;
+    uint256 id;
+    uint256 shares;
+
+    constructor(WAB w, uint256 i) {
+        wab = w;
+        id = i;
+    }
+
+    function buyIn() external {
+        shares = wab.buy{value: 0.1 ether}(id, 0, 0);
+    }
+
+    function cashOut() external {
+        wab.sell(id, 0, shares / 2, 0);
+    }
+
+    receive() external payable {
+        wab.sell(id, 0, shares / 2, 0); // tries to sell again mid-payout
     }
 }

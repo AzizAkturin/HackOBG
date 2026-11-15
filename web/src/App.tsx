@@ -22,7 +22,7 @@ export default function App() {
       <TopBar />
 
       <Routes>
-        <Route path="/" element={<FightPage round={round} onPlaced={setToast} />} />
+        <Route path="/" element={<FightPage onPlaced={setToast} />} />
         <Route path="/stats" element={<StatsPage round={round} />} />
         <Route path="/garage" element={<GaragePage />} />
         <Route path="/me" element={<MyProfileRoute />} />
