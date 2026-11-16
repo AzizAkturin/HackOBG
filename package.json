@@ -1,0 +1,22 @@
+{
+  "name": "wab",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "lint": "pnpm -r lint",
+    "dev:server": "pnpm --filter server dev",
+    "start:server": "pnpm --filter server start",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "llm-spike": "node --env-file=server/.env server/scripts/llm-spike.mjs",
+    "llm-smoke": "node --env-file=server/.env server/scripts/llm-smoke.ts",
+    "contracts:build": "forge build --root contracts",
+    "contracts:test": "forge test --root contracts",
+    "contracts:deploy": "cd contracts && forge script script/Deploy.s.sol:Deploy --rpc-url https://testnet-rpc.monad.xyz --account deployer --broadcast",
+    "contracts:export": "node contracts/script/export.mts"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
