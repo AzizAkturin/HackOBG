@@ -72,15 +72,52 @@ export function MarketChart({ fighters, history, sample, compact, className = ''
   }
   const paths = [line((p) => p), line((p) => 1 - p)]
 
-  // Higher line labels above its dot, lower below; flipped when that would leave the plot area.
-  const endLabelY = (p: number, higher: boolean) => {
-    const above = y(p) - 10
-    const below = y(p) + 18
-    if (higher) return above < PAD.top + 10 ? below : above
-    return below > PAD.top + innerH - 4 ? above : below
-  }
   const last = points[points.length - 1]!.priceA
   const current = [last, 1 - last]
+
+  // end labels follow their dot: try above, then below, then further out, and take the first spot clear of every line and the other label
+  const labelY = (() => {
+    type Box = { x0: number; x1: number; y0: number; y1: number }
+    const obstacles: Box[] = [(p: number) => p, (p: number) => 1 - p].flatMap((f) =>
+      points.flatMap((pt, k) => {
+        const yy = y(f(pt.priceA))
+        const x0 = x(pt.t)
+        const out: Box[] = [{ x0, x1: x(points[k + 1]?.t ?? now), y0: yy, y1: yy }]
+        if (k > 0) {
+          const prev = y(f(points[k - 1]!.priceA))
+          out.push({ x0, x1: x0, y0: Math.min(prev, yy), y1: Math.max(prev, yy) })
+        }
+        return out
+      }),
+    )
+    const out: number[] = []
+    const order = [0, 1].sort((a, b) => current[b]! - current[a]!)
+    for (const [rank, i] of order.entries()) {
+      const right = x(now) - 8
+      const w = (fighters[i]!.name.length + 4) * 7.2
+      const dotY = y(current[i]!)
+      const offsets = Array.from({ length: 8 }, (_, k) => [-(10 + 16 * k), 18 + 16 * k]).flatMap((pair) => (rank === 0 ? pair : pair.reverse()))
+      const hits = (by: number) => {
+        const box = { x0: right - w - 2, x1: right + 2, y0: by - 13, y1: by + 5 }
+        return obstacles.filter((o) => o.x1 >= box.x0 && o.x0 <= box.x1 && o.y1 >= box.y0 && o.y0 <= box.y1).length
+      }
+      let best = Math.min(Math.max(dotY + offsets[0]!, PAD.top + 12), PAD.top + innerH - 4)
+      let bestHits = Infinity
+      for (const off of offsets) {
+        const by = dotY + off
+        if (by - 11 < PAD.top || by + 3 > PAD.top + innerH) continue
+        const h = hits(by)
+        if (h < bestHits) {
+          best = by
+          bestHits = h
+          if (h === 0) break
+        }
+      }
+      out[i] = best
+      obstacles.push({ x0: right - w, x1: right, y0: best - 11, y1: best + 3 })
+    }
+    return out
+  })()
   const shown = hoverT ?? now
   const atHover = priceAt(points, shown)
   const hoverPrices = [atHover, 1 - atHover]
@@ -225,11 +262,13 @@ export function MarketChart({ fighters, history, sample, compact, className = ''
           {current.map((p, i) => (
             <g key={i}>
               <circle cx={x(now)} cy={y(p)} r="4" fill={SERIES[i]} stroke="var(--color-panel)" strokeWidth="2" />
-              {/* the higher line labels above, the lower below, so mirrored lines never collide */}
               <text
                 x={x(now) - 8}
-                y={endLabelY(p, p >= current[1 - i]!)}
+                y={labelY[i]}
                 textAnchor="end"
+                stroke="var(--color-panel)"
+                strokeWidth="3"
+                paintOrder="stroke"
                 className="fill-[var(--color-ink)] text-[12px] font-semibold"
               >
                 {fighters[i]!.name} {pct(p)}

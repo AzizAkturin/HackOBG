@@ -73,13 +73,13 @@ export function Octagon({ match, selected, onSelect }: Props) {
         aria-label={`The ring: ${red.name} in the red corner, ${blue.name} in the blue corner. ${tag}.`}
       >
         <Suspense fallback={<div className="grid h-full place-items-center text-mute">Loading the arena…</div>}>
-          <Arena selected={selected} phase={arenaPhase(match)} onSelect={onSelect} onEvent={onEvent} signals={signals} />
+          <Arena selected={selected} phase={arenaPhase(match)} onSelect={onSelect} onEvent={onEvent} signals={signals} winner={match.winner} />
         </Suspense>
 
         {/* broadcast HUD: names, round-win pips, live progress */}
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-black/70 to-transparent p-3 sm:p-5">
           {mainEvent.fighters.map((f, i) => (
-            <FighterHud key={f.id} name={f.name} nameColor={brands[f.brand].ui} glow={brands[f.brand].glow} right={i === 1} live={fighting ? fighters[i] : null} wins={match.wins[i]!} />
+            <FighterHud key={f.id} name={f.name} nameColor={brands[f.brand].ui} glow={brands[f.brand].glow} right={i === 1} live={fighting ? fighters[i] : null} wins={match.wins[i]!} record={`${f.record[0]}-${f.record[1]} · ELO ${f.elo}`} model={f.model} />
           ))}
         </div>
 
@@ -108,9 +108,6 @@ export function Octagon({ match, selected, onSelect }: Props) {
             <p className="label mt-2 text-sm text-white/90">{banner.sub}</p>
           </div>
         )}
-        <p className="label pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap bg-black/60 px-3 py-1 text-[11px] text-white">
-          {tag}
-        </p>
       </div>
     </section>
   )

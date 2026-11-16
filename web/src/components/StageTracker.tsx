@@ -1,4 +1,4 @@
-import { formatClock, mainEvent } from '../data/mock'
+import { mainEvent } from '../data/mock'
 import { ROUNDS } from '../data/matchContent'
 import type { Match } from '../game/useMatch'
 
@@ -9,7 +9,7 @@ const phaseLabel = (m: Match) =>
 
 /** Five-stage progress: Start, three voted rounds, Result. Says what's happening now and who won what. */
 export function StageTracker({ match }: { match: Match }) {
-  const { stage, results, wins, phase, secondsLeft } = match
+  const { stage, results, phase } = match
   const decidedEarly = phase === 'final' && results.length === 2
   const steps = [
     { n: 1, name: 'Start', short: 'Start' },
@@ -19,23 +19,8 @@ export function StageTracker({ match }: { match: Match }) {
 
   return (
     <nav aria-label="Match progress" className="panel px-4 py-3">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        {/* scoreline */}
-        <p className="flex shrink-0 items-center gap-3 font-display text-2xl font-bold tabular-nums" aria-label={`Score: ${mainEvent.fighters[0].name} ${wins[0]}, ${mainEvent.fighters[1].name} ${wins[1]}`}>
-          <span className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full" style={{ background: CORNER[0] }} aria-hidden />
-            <span className="uppercase">{mainEvent.fighters[0].name}</span>
-          </span>
-          <span className="bg-ink px-2 text-white">
-            {wins[0]}–{wins[1]}
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="uppercase">{mainEvent.fighters[1].name}</span>
-            <span className="h-3 w-3 rounded-full" style={{ background: CORNER[1] }} aria-hidden />
-          </span>
-        </p>
-
-        <ol className="grid w-full min-w-0 grid-cols-5 gap-1 sm:w-auto sm:flex-1">
+      <div>
+        <ol className="grid w-full min-w-0 grid-cols-5 gap-1">
           {steps.map((s) => {
             const result = s.n >= 2 && s.n <= 4 ? results[s.n - 2] : undefined
             const skipped = decidedEarly && s.n === 4
@@ -65,7 +50,7 @@ export function StageTracker({ match }: { match: Match }) {
                   ) : current ? (
                     <span className="font-semibold text-ink">
                       {phaseLabel(match)}
-                      {phase !== 'final' && <span className="tabular-nums text-mute"> · {formatClock(secondsLeft)}</span>}
+                      
                     </span>
                   ) : (
                     <span className="text-mute">{s.n === 5 ? 'First to 2' : 'Upcoming'}</span>

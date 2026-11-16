@@ -7,15 +7,20 @@ interface Props {
   right: boolean
   live: FighterLive | null
   wins: number
+  record: string
+  model: string
 }
 
-export function FighterHud({ name, nameColor, glow, right, live, wins }: Props) {
+export function FighterHud({ name, nameColor, glow, right, live, wins, record, model }: Props) {
   const side = right ? 'ml-auto text-right' : ''
   const pct = live ? (live.finished ? 1 : Math.min(1, live.tokens / live.budget)) * 100 : 0
   return (
     <div className={`w-[42%] max-w-sm ${right ? 'text-right' : ''}`}>
       <p className="headline text-xl uppercase leading-none sm:text-3xl" style={{ color: nameColor }}>
         {name}
+      </p>
+      <p className="mt-1 font-body text-xs font-medium text-white/80 sm:text-sm">
+        {record} · <span className="italic">{model}</span>
       </p>
       <p className={`mt-1.5 flex gap-1 ${right ? 'justify-end' : ''}`} aria-label={`${wins} rounds won`}>
         {[0, 1].map((k) => (
