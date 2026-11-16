@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router'
 import { formatEther } from 'viem'
 import { useBalance } from 'wagmi'
-import { formatClock, mainEvent, otherFights, roundLabel, type FightStatus } from '../data/mock'
+import { matchLabel } from '../data/fighters'
 import { useAuth } from '../wallet/AuthProvider'
 import { chain } from '../wallet/config'
 import { AccountButton } from './AccountButton'
@@ -9,34 +9,19 @@ import type { Match } from '../game/useMatch'
 
 const links = [
   { to: '/', label: 'Fightcenter' },
-  { to: '/stats', label: 'Rankings' },
+  { to: '/stats', label: 'Fight card' },
 ]
-
-const statusLabel: Record<FightStatus, string> = {
-  fighting: 'Live',
-  voting: 'Voting',
-  upcoming: 'Upcoming',
-}
-
-const others = otherFights.map((f) => ({
-  roundId: f.roundId,
-  meta: f.weightClass,
-  status: f.status === 'upcoming' && f.startsInSec ? `In ${formatClock(f.startsInSec)}` : statusLabel[f.status],
-  live: f.status === 'fighting',
-  rows: [{ name: f.task, record: '' }],
-}))
 
 export function TopBar({ match }: { match: Match }) {
   // the main event tile follows the live match: stage in the status, round wins as the score
   const scores = [
     {
-      roundId: mainEvent.roundId,
-      meta: mainEvent.weightClass,
+      roundId: match.matchNo,
+      meta: match.weightClass,
       status: match.phase === 'final' ? 'Final' : match.phase === 'trading' ? 'Trading' : match.phase === 'voting' ? 'Voting' : 'Live',
       live: match.phase === 'fighting',
-      rows: mainEvent.fighters.map((f, i) => ({ name: f.name, record: String(match.wins[i]) })),
+      rows: match.fighters.map((f, i) => ({ name: f.name, record: String(match.wins[i]) })),
     },
-    ...others,
   ]
   const { user } = useAuth()
   // Real wallet balance, shown only when signed in.
@@ -53,7 +38,7 @@ export function TopBar({ match }: { match: Match }) {
               className="flex w-[160px] shrink-0 flex-col justify-center border-r border-[#d4d4d4] px-3 text-[11px] leading-[14px]"
             >
               <span className="flex justify-between text-[#6c6c6c]">
-                <span>{roundLabel(s.roundId)} · {s.meta}</span>
+                <span>{matchLabel(s.roundId)} · {s.meta}</span>
                 <span className={s.live ? 'font-bold text-[#d00]' : ''}>{s.status}</span>
               </span>
               {s.rows.map((r) => (
@@ -86,10 +71,6 @@ export function TopBar({ match }: { match: Match }) {
             </nav>
           </div>
           <div className="flex items-center gap-5 font-display text-[15px] font-semibold text-white">
-            <span className="hidden items-center gap-2 md:flex">
-              <span className="blink h-2 w-2 rounded-full bg-[#d00]" aria-hidden />
-              {mainEvent.watching.toLocaleString()} watching
-            </span>
             {user && (
               <span className="hidden tabular-nums sm:inline" title="Your wallet balance on Monad testnet">
                 <span className="text-[#ffc94a]">◆</span> {mon === null ? '…' : mon.toFixed(2)} MON

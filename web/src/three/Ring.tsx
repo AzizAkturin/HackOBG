@@ -3,13 +3,13 @@ import { RoundedBox } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { brands } from '../data/brands'
-import { firstName, mainEvent } from '../data/mock'
+import type { Broadcast } from './broadcast'
+import { useMatchupTexture } from './useMatchupTexture'
 import { Batch } from './StaticBatch'
 import { CORNER_SEATS, MAT_Y } from './director'
 import { ANIMATED, createScreen, drawScreen, type ScreenKind } from './deskScreens'
 import { CHAIR_H, COMMENTATORS, DESK_XS, DESK_Z, STAGE_Y } from './stadium'
-import { grimeTexture, holoRingTexture, noiseTexture, ringCanvasTexture, screenTexture, skirtTexture, whenFontsReady } from './textures'
+import { grimeTexture, holoRingTexture, noiseTexture, ringCanvasTexture, skirtTexture, whenFontsReady } from './textures'
 
 /** Half the distance between corner posts. */
 export const RING_HALF = 3.6
@@ -171,14 +171,8 @@ function HoloFloor({ reduced }: { reduced: boolean }) {
 }
 
 /** Floating hologram screen behind the ring, with a slow flicker. */
-function drawHolo() {
-  const [red, blue] = mainEvent.fighters
-  return screenTexture(firstName(red.name), firstName(blue.name), brands[red.brand].ui, brands[blue.brand].ui)
-}
-
-function HoloScreen({ reduced }: { reduced: boolean }) {
-  const [tex, setTex] = useState(drawHolo)
-  useEffect(() => whenFontsReady(() => setTex(drawHolo())), [])
+function HoloScreen({ reduced, broadcast }: { reduced: boolean; broadcast: Broadcast }) {
+  const tex = useMatchupTexture(broadcast)
   const mat = useRef<THREE.MeshBasicMaterial>(null)
   useFrame(({ clock }) => {
     if (!mat.current || reduced) return
@@ -210,7 +204,7 @@ const DESK_SCREENS: ScreenKind[][] = [
   ['pool', 'task'],
 ]
 
-function DeskScreen({ kind, reduced }: { kind: ScreenKind; reduced: boolean }) {
+function DeskScreen({ kind, reduced, broadcast }: { kind: ScreenKind; reduced: boolean; broadcast: Broadcast }) {
   const screen = useMemo(() => createScreen(), [])
   const clock = useRef(0)
   const animated = ANIMATED.has(kind) && !reduced
@@ -219,7 +213,7 @@ function DeskScreen({ kind, reduced }: { kind: ScreenKind; reduced: boolean }) {
     let mounted = true
     const redraw = () => {
       if (!mounted) return
-      drawScreen(kind, screen.ctx, clock.current)
+      drawScreen(kind, screen.ctx, clock.current, broadcast)
       screen.texture.needsUpdate = true
     }
     redraw()
@@ -228,14 +222,17 @@ function DeskScreen({ kind, reduced }: { kind: ScreenKind; reduced: boolean }) {
       mounted = false
       screen.texture.dispose()
     }
-  }, [kind, screen])
+  }, [kind, screen, broadcast])
 
   const last = useRef(0)
+  const seen = useRef(broadcast.version)
   useFrame(({ clock: c }) => {
-    if (!animated || c.elapsedTime - last.current < 0.12) return
+    const stale = seen.current !== broadcast.version
+    if (!stale && (!animated || c.elapsedTime - last.current < 0.12)) return
+    seen.current = broadcast.version
     last.current = c.elapsedTime
     clock.current = c.elapsedTime
-    drawScreen(kind, screen.ctx, c.elapsedTime)
+    drawScreen(kind, screen.ctx, c.elapsedTime, broadcast)
     screen.texture.needsUpdate = true
   })
 
@@ -248,7 +245,7 @@ function DeskScreen({ kind, reduced }: { kind: ScreenKind; reduced: boolean }) {
 }
 
 /** Monitors on the commentary desks, showing broadcast graphics. */
-function DeskMonitors({ reduced }: { reduced: boolean }) {
+function DeskMonitors({ reduced, broadcast }: { reduced: boolean; broadcast: Broadcast }) {
   return (
     <>
       {COMMENTATORS.map(([x, z]) => (
@@ -266,7 +263,7 @@ function DeskMonitors({ reduced }: { reduced: boolean }) {
                 <boxGeometry args={[0.74, 0.46, 0.02]} />
                 <meshStandardMaterial color="#0a0b0d" roughness={0.5} metalness={0.4} />
               </mesh>
-              <DeskScreen kind={kind} reduced={reduced} />
+              <DeskScreen kind={kind} reduced={reduced} broadcast={broadcast} />
             </group>
           </group>
         )),
@@ -275,7 +272,7 @@ function DeskMonitors({ reduced }: { reduced: boolean }) {
   )
 }
 
-export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean }) {
+export function Ring({ resting, reduced, broadcast }: { resting: boolean; reduced: boolean; broadcast: Broadcast }) {
   const base = useMemo(
     () => ({
       rough: noiseTexture(),
@@ -436,9 +433,9 @@ export function Ring({ resting, reduced }: { resting: boolean; reduced: boolean 
       })}
       </Batch>
 
-      <DeskMonitors reduced={reduced} />
+      <DeskMonitors reduced={reduced} broadcast={broadcast} />
       <HoloFloor reduced={reduced} />
-      <HoloScreen reduced={reduced} />
+      <HoloScreen reduced={reduced} broadcast={broadcast} />
       <PopUpStool x={CORNER_SEATS[0][0]} z={CORNER_SEATS[0][1]} color="#ff3b30" up={resting} reduced={reduced} />
       <PopUpStool x={CORNER_SEATS[1][0]} z={CORNER_SEATS[1][1]} color="#3b7bff" up={resting} reduced={reduced} />
 

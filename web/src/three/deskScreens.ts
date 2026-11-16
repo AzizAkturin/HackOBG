@@ -1,7 +1,8 @@
 // Broadcast graphics drawn onto the ringside desk monitors.
 import * as THREE from 'three'
 import { brands } from '../data/brands'
-import { mainEvent, RAKE } from '../data/mock'
+import { coefficient } from '@wab/shared'
+import type { Broadcast } from './broadcast'
 
 export const SCREEN_W = 640
 export const SCREEN_H = 384
@@ -20,7 +21,7 @@ const DISPLAY = '700 {s}px "Barlow Condensed", sans-serif'
 const MONO = '{s}px ui-monospace, Menlo, Consolas, monospace'
 const font = (tpl: string, size: number) => tpl.replace('{s}', String(size))
 
-function frame(c: Ctx, title: string, accent: string, t: number) {
+function frame(c: Ctx, title: string, accent: string, t: number, b: Broadcast) {
   c.fillStyle = BG
   c.fillRect(0, 0, SCREEN_W, SCREEN_H)
   c.fillStyle = accent
@@ -37,7 +38,7 @@ function frame(c: Ctx, title: string, accent: string, t: number) {
   c.textAlign = 'right'
   c.font = font(DISPLAY, 26)
   c.fillStyle = DIM
-  c.fillText(`R${mainEvent.roundId}  ·  ${mainEvent.weightClass.toUpperCase()}`, SCREEN_W - 56, 27)
+  c.fillText(`${b.matchLabel}  ·  ${b.weightClass.toUpperCase()}`, SCREEN_W - 56, 27)
   const live = Math.floor(t * 1.4) % 2 === 0
   c.fillStyle = live ? '#ff3b30' : '#5a1814'
   c.beginPath()
@@ -83,10 +84,10 @@ function stat(c: Ctx, label: string, value: string, x: number, y: number, color 
   c.fillText(value, x, y + 38)
 }
 
-function fighterCard(c: Ctx, index: 0 | 1, t: number) {
-  const f = mainEvent.fighters[index]
+function fighterCard(c: Ctx, index: 0 | 1, t: number, bc: Broadcast) {
+  const f = bc.fighters[index]!
   const b = brands[f.brand]
-  frame(c, index === 0 ? 'RED CORNER' : 'BLUE CORNER', index === 0 ? '#ff3b30' : '#3b7bff', t)
+  frame(c, index === 0 ? 'RED CORNER' : 'BLUE CORNER', index === 0 ? '#ff3b30' : '#3b7bff', t, bc)
   c.textAlign = 'left'
   c.textBaseline = 'middle'
   const name = f.name.toUpperCase()
@@ -97,75 +98,72 @@ function fighterCard(c: Ctx, index: 0 | 1, t: number) {
   c.fillText(name, 22, 124)
   c.font = font(DISPLAY, 28)
   c.fillStyle = DIM
-  c.fillText(b.label.toUpperCase(), 24, 188)
+  c.fillText(f.label.toUpperCase(), 24, 188)
 
-  stat(c, 'RECORD', `${f.record[0]}-${f.record[1]}`, 24, 232)
-  stat(c, 'ELO', String(f.elo), 190, 232)
-  stat(c, f.streak > 0 ? 'WIN STREAK' : 'LOSS STREAK', String(Math.abs(f.streak)), 330, 232, f.streak > 0 ? '#5fd08a' : '#ff5a4a')
-  stat(c, 'AVG FINISH', `${f.avgFinish}s`, 490, 232)
+  stat(c, 'ROUNDS WON', String(bc.wins[index]), 24, 232)
+  stat(c, 'CLASS', f.weightClass.toUpperCase(), 220, 232)
+  stat(c, 'TOKENS', String(bc.tokens[index]), 470, 232)
 
   c.textAlign = 'left'
   c.font = font(DISPLAY, 22)
   c.fillStyle = DIM
-  c.fillText('CROWD VOTE SHARE', 24, 330)
-  bar(c, 24, 346, 480, 14, f.voteShare, b.glow)
+  c.fillText(bc.finished[index] ? 'FINISHED' : 'TOKEN BUDGET', 24, 330)
+  const frac = bc.budget ? bc.tokens[index] / bc.budget : 0
+  bar(c, 24, 346, 480, 14, bc.finished[index] ? 1 : frac, b.glow)
   c.textAlign = 'right'
   c.font = font(DISPLAY, 30)
   c.fillStyle = TEXT
-  c.fillText(`${Math.round(f.voteShare * 100)}%`, SCREEN_W - 24, 350)
+  c.fillText(`${Math.round(Math.min(1, frac) * 100)}%`, SCREEN_W - 24, 350)
   scanlines(c)
 }
 
-function poolScreen(c: Ctx, t: number) {
-  frame(c, 'BETTING POOL', '#ffc83d', t)
-  const [a, b] = mainEvent.fighters
-  const total = a.pool + b.pool
-  c.textAlign = 'left'
+function marketScreen(c: Ctx, t: number, bc: Broadcast) {
+  frame(c, 'MARKET', '#ffc83d', t, bc)
+  const prices = [bc.priceA, 1 - bc.priceA]
   c.textBaseline = 'middle'
-  c.font = font(DISPLAY, 24)
-  c.fillStyle = DIM
-  c.fillText('TOTAL POOL', 24, 92)
-  c.font = font(DISPLAY, 120)
-  c.fillStyle = '#ffc83d'
-  c.fillText(total.toFixed(2), 20, 160)
-  c.font = font(DISPLAY, 40)
-  c.fillStyle = DIM
-  c.fillText('MON', 20 + c.measureText(total.toFixed(2)).width + 16, 176)
-
-  const split = a.pool / total
   c.fillStyle = '#ff3b30'
-  c.fillRect(24, 232, (SCREEN_W - 48) * split, 18)
+  c.fillRect(24, 200, (SCREEN_W - 48) * bc.priceA, 18)
   c.fillStyle = '#3b7bff'
-  c.fillRect(24 + (SCREEN_W - 48) * split, 232, (SCREEN_W - 48) * (1 - split), 18)
-
-  ;[a, b].forEach((f, i) => {
+  c.fillRect(24 + (SCREEN_W - 48) * bc.priceA, 200, (SCREEN_W - 48) * (1 - bc.priceA), 18)
+  bc.fighters.forEach((f, i) => {
     const x = i === 0 ? 24 : SCREEN_W - 24
     c.textAlign = i === 0 ? 'left' : 'right'
-    c.font = font(DISPLAY, 40)
+    c.font = font(DISPLAY, 36)
     c.fillStyle = brands[f.brand].ui
-    c.fillText(f.name.toUpperCase(), x, 282)
-    c.font = font(DISPLAY, 52)
+    c.fillText(f.name.toUpperCase(), x, 96)
+    c.font = font(DISPLAY, 72)
     c.fillStyle = TEXT
-    c.fillText(`${((total * (1 - RAKE)) / f.pool).toFixed(2)}x`, x, 334)
-    c.font = font(DISPLAY, 22)
-    c.fillStyle = DIM
-    c.fillText(`${f.pool.toFixed(2)} MON  ·  ${f.backers} BACKERS`, x, 366)
+    c.fillText(`${Math.round(prices[i]! * 100)}%`, x, 150)
+    c.font = font(DISPLAY, 44)
+    c.fillStyle = '#ffc83d'
+    const k = coefficient(prices[i]!)
+    c.fillText(k >= 100 ? '99x+' : `${k.toFixed(2)}x`, x, 270)
   })
+  c.textAlign = 'left'
+  c.font = font(DISPLAY, 22)
+  c.fillStyle = DIM
+  c.fillText('CHANCE TO WIN  ·  PAYOUT PER MON', 24, 340)
   scanlines(c)
 }
 
-function taskScreen(c: Ctx, t: number) {
-  frame(c, 'THE TASK', CYAN, t)
+function taskScreen(c: Ctx, t: number, bc: Broadcast) {
+  frame(c, 'THE TASK', CYAN, t, bc)
   c.textAlign = 'left'
   c.textBaseline = 'top'
-  c.font = font(DISPLAY, 58)
+  let size = 58
+  c.font = font(DISPLAY, size)
+  let lines = wrap(c, bc.task || 'Waiting for a prompt', SCREEN_W - 48)
+  while (lines.length * size * 1.07 > 200 && size > 26) {
+    c.font = font(DISPLAY, (size -= 4))
+    lines = wrap(c, bc.task || 'Waiting for a prompt', SCREEN_W - 48)
+  }
   c.fillStyle = TEXT
-  wrap(c, mainEvent.task, SCREEN_W - 48).forEach((line, i) => c.fillText(line, 24, 78 + i * 62))
+  lines.slice(0, Math.floor(200 / (size * 1.07))).forEach((line, i) => c.fillText(line, 24, 74 + i * size * 1.07))
   c.textBaseline = 'middle'
   const rows: [string, string][] = [
-    ['JUDGE', 'PENDING'],
-    ['FORMAT', mainEvent.outputs[0].kind === 'image' ? 'IMAGE' : '~250 WORDS'],
-    ['LOCKS IN', '90s'],
+    ['ROUND', bc.round.toUpperCase()],
+    ['TOKEN CAP', bc.budget ? String(bc.budget) : '—'],
+    ['TIME LIMIT', bc.fightSeconds ? `${bc.fightSeconds}s` : '—'],
   ]
   rows.forEach(([k, v], i) => {
     const y = 296 + i * 28
@@ -180,53 +178,44 @@ function taskScreen(c: Ctx, t: number) {
   scanlines(c)
 }
 
-const STREAM_SCRIPT = [
-  'planning approach',
-  'drafting outline',
-  'SpinCycle turns idle laundromats into neighborhood micro-fulfillment hubs.',
-  'Most laundromats sit 70% empty outside weekend peaks. We install smart lockers so local shops can rent drop-off space by the hour.',
-  'Revenue: locker rentals, a 15% cut of wash-and-fold, and a SaaS fee for owners.',
-].join('\n')
-
-function streamScreen(c: Ctx, t: number) {
-  frame(c, 'AGENT STREAM', '#5fd08a', t)
-  const cols = mainEvent.fighters.map((f) => ({ name: f.name, color: brands[f.brand].ui }))
+function streamScreen(c: Ctx, t: number, bc: Broadcast) {
+  frame(c, 'AGENT STREAM', '#5fd08a', t, bc)
   c.textBaseline = 'top'
   const colW = (SCREEN_W - 60) / 2
-  cols.forEach((col, i) => {
+  bc.fighters.forEach((f, i) => {
+    const color = brands[f.brand].ui
     const x = 20 + i * (colW + 20)
     c.textAlign = 'left'
     c.font = font(DISPLAY, 28)
-    c.fillStyle = col.color
-    c.fillText(col.name.toUpperCase(), x, 68)
+    c.fillStyle = color
+    c.fillText(f.name.toUpperCase(), x, 68)
     c.fillStyle = 'rgb(255 255 255 / 0.18)'
     c.fillRect(x, 102, colW, 2)
 
-    const speed = i === 0 ? 34 : 29
-    const total = STREAM_SCRIPT.length
-    const shown = Math.floor((t * speed) % (total + 60))
     c.font = font(MONO, 15)
-    const lines = wrap(c, STREAM_SCRIPT.slice(0, Math.min(shown, total)), colW)
+    const text = bc.texts[i as 0 | 1]
+    const lines = text ? wrap(c, text.slice(-1200), colW) : ['waiting for the bell']
     const rows = 14
-    lines.slice(-rows).forEach((line, r) => {
-      c.fillStyle = r === Math.min(lines.length, rows) - 1 ? TEXT : '#aeb9c4'
+    const shown = lines.slice(-rows)
+    shown.forEach((line, r) => {
+      c.fillStyle = !text ? DIM : r === shown.length - 1 ? TEXT : '#aeb9c4'
       c.fillText(line, x, 114 + r * 18)
     })
-    if (Math.floor(t * 2.5) % 2 === 0) {
-      const last = lines[Math.min(lines.length, rows) - 1] ?? ''
-      c.fillStyle = col.color
-      c.fillRect(x + c.measureText(last).width + 2, 114 + (Math.min(lines.length, rows) - 1) * 18, 8, 15)
+    if (text && !bc.finished[i as 0 | 1] && Math.floor(t * 2.5) % 2 === 0) {
+      const last = shown[shown.length - 1] ?? ''
+      c.fillStyle = color
+      c.fillRect(x + c.measureText(last).width + 2, 114 + (shown.length - 1) * 18, 8, 15)
     }
     c.textAlign = 'left'
     c.font = font(DISPLAY, 22)
     c.fillStyle = DIM
-    c.fillText(`${Math.min(shown, total) * 3} TOKENS`, x, 362)
+    c.fillText(`${bc.tokens[i as 0 | 1]} TOKENS`, x, 362)
   })
   scanlines(c)
 }
 
-function camScreen(c: Ctx, t: number) {
-  frame(c, 'RING CAM 1', '#ff8a4c', t)
+function camScreen(c: Ctx, t: number, bc: Broadcast) {
+  frame(c, 'RING CAM 1', '#ff8a4c', t, bc)
   const cx = SCREEN_W / 2
   const cy = 218
   const half = 130
@@ -244,7 +233,7 @@ function camScreen(c: Ctx, t: number) {
   c.beginPath()
   c.arc(cx, cy, 36, 0, Math.PI * 2)
   c.stroke()
-  mainEvent.fighters.forEach((f, i) => {
+  bc.fighters.forEach((f, i) => {
     const side = i === 0 ? -1 : 1
     const x = cx + side * (48 + Math.sin(t * 1.3 + i * 2) * 14)
     const y = cy + Math.cos(t * 0.9 + i * 3) * 30
@@ -270,26 +259,26 @@ function camScreen(c: Ctx, t: number) {
   scanlines(c)
 }
 
-export function drawScreen(kind: ScreenKind, c: Ctx, t: number) {
+export function drawScreen(kind: ScreenKind, c: Ctx, t: number, b: Broadcast) {
   c.save()
   switch (kind) {
     case 'red':
-      fighterCard(c, 0, t)
+      fighterCard(c, 0, t, b)
       break
     case 'blue':
-      fighterCard(c, 1, t)
+      fighterCard(c, 1, t, b)
       break
     case 'pool':
-      poolScreen(c, t)
+      marketScreen(c, t, b)
       break
     case 'task':
-      taskScreen(c, t)
+      taskScreen(c, t, b)
       break
     case 'stream':
-      streamScreen(c, t)
+      streamScreen(c, t, b)
       break
     case 'cam':
-      camScreen(c, t)
+      camScreen(c, t, b)
       break
   }
   c.restore()

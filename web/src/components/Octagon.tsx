@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { brands } from '../data/brands'
-import { mainEvent } from '../data/mock'
+import { matchLabel } from '../data/fighters'
+import { createBroadcast, updateBroadcast } from '../three/broadcast'
 import { ROUNDS } from '../data/matchContent'
 import type { Match } from '../game/useMatch'
 import type { Phase as ArenaPhase } from '../game/arenaPhase'
@@ -24,18 +25,36 @@ const arenaPhase = (m: Match): ArenaPhase =>
   m.phase === 'fighting' ? 'fighting' : m.phase === 'voting' ? 'rest' : m.phase === 'final' ? 'reveal' : 'betting'
 
 export function Octagon({ match, selected, onSelect }: Props) {
-  const [red, blue] = mainEvent.fighters
+  const [red, blue] = match.fighters
   const fighting = match.phase === 'fighting'
   const fightEvents = match.fight?.events ?? NO_EVENTS
   const elapsed = fighting && match.fight ? (match.now - match.fight.startedAt) / 1000 : 0
   const { fighters, signals } = useFightStream(fightEvents, elapsed, fighting)
+  const [broadcast] = useState(() => createBroadcast(match.fighters))
+  const round = ROUNDS[match.roundIndex]!
+  useEffect(() => {
+    updateBroadcast(broadcast, {
+      fighters: match.fighters,
+      task: match.setup.task,
+      matchLabel: matchLabel(match.matchNo),
+      weightClass: match.weightClass,
+      round: `Round ${match.roundIndex + 1} · ${round.name}`,
+      texts: match.fight?.texts ?? ['', ''],
+      tokens: [fighters[0]!.tokens, fighters[1]!.tokens],
+      budget: match.config?.limits.maxTokens ?? 0,
+      finished: [fighters[0]!.finished, fighters[1]!.finished],
+      wins: match.wins,
+      priceA: match.priceA,
+      fightSeconds: match.config?.limits.fightSeconds ?? 0,
+    })
+  })
   const [callout, setCallout] = useState<{ key: number; text: string; color: string } | null>(null)
 
   const onEvent = useCallback((e: FightEvent) => {
     if (e.reaction !== 'hit' && e.reaction !== 'knockdown') return
-    const f = mainEvent.fighters[e.attacker]
-    setCallout({ key: Date.now(), text: e.reaction === 'knockdown' ? 'Knockdown!' : `${MOVES[e.move].label}!`, color: f.accent })
-  }, [])
+    const f = match.fighters[e.attacker]!
+    setCallout({ key: Date.now(), text: e.reaction === 'knockdown' ? 'Knockdown!' : `${MOVES[e.move].label}!`, color: brands[f.brand].ui })
+  }, [match.fighters])
 
   useEffect(() => {
     if (!callout) return
@@ -44,7 +63,6 @@ export function Octagon({ match, selected, onSelect }: Props) {
   }, [callout])
 
   // A big broadcast banner for the first seconds of each phase, then a small persistent tag.
-  const round = ROUNDS[match.roundIndex]!
   const justStarted = match.phaseLen - match.secondsLeft < 4
   const last = match.results[match.results.length - 1]
   const banner =
@@ -53,9 +71,9 @@ export function Octagon({ match, selected, onSelect }: Props) {
       : match.phase === 'voting'
         ? { title: 'Vote now', sub: 'Pick the better pitch below ↓', color: '#7fb0ff' }
         : match.phase === 'final' && last
-          ? { title: `${mainEvent.fighters[last.winner].name} wins`, sub: `${match.wins[0]}–${match.wins[1]}`, color: brands[mainEvent.fighters[last.winner].brand].ui }
+          ? { title: `${match.fighters[last.winner].name} wins`, sub: `${match.wins[0]}–${match.wins[1]}`, color: brands[match.fighters[last.winner].brand].ui }
           : last
-            ? { title: `${mainEvent.fighters[last.winner].name} takes it`, sub: `${ROUNDS[last.index]!.name} · ${match.wins[0]}–${match.wins[1]}`, color: brands[mainEvent.fighters[last.winner].brand].ui }
+            ? { title: `${match.fighters[last.winner].name} takes it`, sub: `${ROUNDS[last.index]!.name} · ${match.wins[0]}–${match.wins[1]}`, color: brands[match.fighters[last.winner].brand].ui }
             : null
   const tag =
     match.phase === 'fighting'
@@ -77,13 +95,13 @@ export function Octagon({ match, selected, onSelect }: Props) {
         aria-label={`The ring: ${red.name} in the red corner, ${blue.name} in the blue corner. ${tag}.`}
       >
         <Suspense fallback={<div className="grid h-full place-items-center text-mute">Loading the arena…</div>}>
-          <Arena selected={selected} phase={arenaPhase(match)} onSelect={onSelect} onEvent={onEvent} signals={signals} winner={match.winner} />
+          <Arena fighters={match.fighters} broadcast={broadcast} selected={selected} phase={arenaPhase(match)} onSelect={onSelect} onEvent={onEvent} signals={signals} winner={match.winner} />
         </Suspense>
 
         {/* broadcast HUD: names, round-win pips, live progress */}
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-black/70 to-transparent p-3 sm:p-5">
-          {mainEvent.fighters.map((f, i) => (
-            <FighterHud key={f.id} name={f.name} nameColor={brands[f.brand].ui} glow={brands[f.brand].glow} right={i === 1} live={fighting ? fighters[i] : null} wins={match.wins[i]!} record={`${f.record[0]}-${f.record[1]} · ELO ${f.elo}`} model={match.modelLabels[i]!} />
+          {match.fighters.map((f, i) => (
+            <FighterHud key={i} name={f.name} nameColor={brands[f.brand].ui} glow={brands[f.brand].glow} right={i === 1} live={fighting ? fighters[i] : null} wins={match.wins[i]!} record={f.weightClass} model={f.label} />
           ))}
         </div>
 

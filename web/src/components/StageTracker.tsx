@@ -1,4 +1,3 @@
-import { mainEvent } from '../data/mock'
 import { ROUNDS } from '../data/matchContent'
 import type { Match } from '../game/useMatch'
 
@@ -26,7 +25,7 @@ export function StageTracker({ match }: { match: Match }) {
             const skipped = decidedEarly && s.n === 4
             const current = s.n === stage
             const done = s.n < stage || (s.n === 5 && phase === 'final')
-            const winner = result ? mainEvent.fighters[result.winner] : null
+            const winner = result ? match.fighters[result.winner] : null
             return (
               <li
                 key={s.n}
@@ -46,7 +45,7 @@ export function StageTracker({ match }: { match: Match }) {
                       {winner.name} ✓
                     </span>
                   ) : s.n === 1 && done ? (
-                    <span className="text-mute">Opened {mainEvent.fighters[0].name} {Math.round(match.openingPriceA * 100)}%</span>
+                    <span className="text-mute">Opened {match.fighters[0].name} {Math.round(match.openingPriceA * 100)}%</span>
                   ) : current ? (
                     <span className="font-semibold text-ink">
                       {phaseLabel(match)}

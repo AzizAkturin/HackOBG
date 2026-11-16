@@ -2,16 +2,16 @@
 // a square lighting rig with visible beams, and dust in the air.
 import { Sparkles, SpotLight } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { brands } from '../data/brands'
-import { firstName, mainEvent } from '../data/mock'
+import type { Broadcast } from './broadcast'
+import { useMatchupTexture } from './useMatchupTexture'
 import { Batch } from './StaticBatch'
 import { Crowd } from './crowd/Crowd'
 import type { Phase } from '../game/arenaPhase'
 import { MAT_Y, type FightDirector } from './director'
 import { FIRST_ROW, ROW_DEPTH, ROW_RISE, TIERS } from './stadium'
-import { grimeTexture, puddleTexture, screenTexture, whenFontsReady } from './textures'
+import { grimeTexture, puddleTexture } from './textures'
 
 const RIG_Y = 9.5
 const RIG_HALF = 4.2
@@ -151,14 +151,8 @@ function Rafters() {
 }
 
 /** LED boards above the far stands showing the matchup. */
-function drawBoard() {
-  const [red, blue] = mainEvent.fighters
-  return screenTexture(firstName(red.name), firstName(blue.name), brands[red.brand].ui, brands[blue.brand].ui)
-}
-
-function Boards() {
-  const [tex, setTex] = useState(drawBoard)
-  useEffect(() => whenFontsReady(() => setTex(drawBoard())), [])
+function Boards({ broadcast }: { broadcast: Broadcast }) {
+  const tex = useMatchupTexture(broadcast)
   return (
     <>
       {[-9, 9].map((x) => (
@@ -266,7 +260,7 @@ function RigLights({ director, reduced }: { director: FightDirector; reduced: bo
   )
 }
 
-export function Venue({ reduced, director }: { reduced: boolean; director: FightDirector }) {
+export function Venue({ reduced, director, broadcast }: { reduced: boolean; director: FightDirector; broadcast: Broadcast }) {
   const floor = useMemo(() => {
     const rough = puddleTexture()
     rough.repeat.set(10, 10)
@@ -288,7 +282,7 @@ export function Venue({ reduced, director }: { reduced: boolean; director: Fight
         <FloorCables />
         <Rafters />
       </Batch>
-      <Boards />
+      <Boards broadcast={broadcast} />
 
       {/* square lighting truss over the ring */}
       <Batch>

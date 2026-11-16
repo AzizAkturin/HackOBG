@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { applyTrade, matchOdds, openMarket, priceA, quoteBuy, quoteSell, reanchor, roundOdds, type MarketState } from '@wab/shared'
 import { ROUNDS } from '../data/matchContent'
-import { mainEvent, randomAddress } from '../data/mock'
+import { fightersFor, matchClass } from '../data/fighters'
 import type { MarketHistory, PricePoint, StageSpan } from './marketHistory'
 import type { FightEvent } from '@wab/shared'
-import { DEFAULT_MODELS, streamFight, type FightMessage, type FightOutcome } from './liveFight'
+import { fetchFightConfig, streamFight, type FightConfig, type FightMessage, type FightOutcome } from './liveFight'
 
 /**
- * One live match on the WAB contract's rules (ADR-0017): trading at odds from fight history, then best-of-3
+ * One live match on the WAB contract's rules (ADR-0017): trading from even odds, then best-of-3
  * rounds where trading closes, robots fight, position holders vote on blind pitches, and the price re-anchors.
  * The fights are real: each round streams two OpenRouter models from the server (POST /api/fights).
  * The market and crowd are still simulated locally with the contract's math until the contract is deployed.
@@ -16,7 +16,7 @@ import { DEFAULT_MODELS, streamFight, type FightMessage, type FightOutcome } fro
 export type MatchPhase = 'trading' | 'fighting' | 'voting' | 'final'
 export type Side = 0 | 1
 
-export const SEC = { start: 45, fight: 60, vote: 25, between: 25, final: 30 } as const
+export const SEC = { start: 45, vote: 25, between: 25, final: 30 } as const
 /** extra wait past the server's fight deadline before the round is called off */
 const FIGHT_GRACE_MS = 20_000
 export const LIMITS = { min: 0.05, max: 0.3 } // Middleweight class on the contract
@@ -81,7 +81,11 @@ type State = {
   /** the opening bell only counts down once someone starts the match, so idle tabs never spend credits */
   armed: boolean
   fight: LiveFight | null
-  modelLabels: [string, string]
+  /** server catalog, defaults and limits; null until GET /api/fights/models answers */
+  config: FightConfig | null
+  configError: string | null
+  /** counts matches played in this session, for the M001 label */
+  matchNo: number
 }
 
 type Action =
@@ -96,16 +100,25 @@ type Action =
   | { type: 'arm'; now: number; bellNow: boolean }
   | { type: 'fightMsg'; key: string; msg: FightMessage }
   | { type: 'fightClosed'; key: string; error?: string }
+  | { type: 'config'; config: FightConfig }
+  | { type: 'configError'; message: string }
 
-const [RED, BLUE] = mainEvent.fighters
-export const ROUND_ODDS = roundOdds({ wins: RED.record[0], losses: RED.record[1] }, { wins: BLUE.record[0], losses: BLUE.record[1] })
+// no fight history is recorded yet, so every match opens at even odds
+export const ROUND_ODDS = roundOdds({ wins: 0, losses: 0 }, { wins: 0, losses: 0 })
+
+export const randomAddress = () => {
+  const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0')
+  return `0x${hex()}…${hex().slice(0, 2)}`
+}
 
 let feedKey = 0
 const emptyPos = (): Position => ({ shares: [0, 0], cost: [0, 0], firstAt: [null, null], firstPrice: [0, 0] })
 
 const fightKey = (s: Pick<State, 'start' | 'results'>) => `${s.start}-${s.results.length}`
 
-function fresh(now: number, balance = 1, setup: MatchSetup = { task: mainEvent.task, models: DEFAULT_MODELS }): State {
+type Carry = Pick<State, 'balance' | 'setup' | 'config' | 'configError' | 'matchNo'>
+
+function fresh(now: number, carry: Carry = { balance: 1, setup: { task: '', models: ['', ''] }, config: null, configError: null, matchNo: 1 }): State {
   const market = openMarket(ROUND_ODDS, LIQUIDITY, FEE_BPS)
   return {
     now,
@@ -118,7 +131,6 @@ function fresh(now: number, balance = 1, setup: MatchSetup = { task: mainEvent.t
     market,
     points: [{ t: now, priceA: priceA(market) }],
     spans: [{ stage: 1, label: 'Start', from: now, to: Infinity, trading: true }],
-    balance,
     pos: emptyPos(),
     swapped: false,
     votes: [0, 0],
@@ -128,10 +140,9 @@ function fresh(now: number, balance = 1, setup: MatchSetup = { task: mainEvent.t
     claimed: false,
     payout: 0,
     fairA: priceA(market),
-    setup,
     armed: false,
     fight: null,
-    modelLabels: setup.models,
+    ...carry,
   }
 }
 
@@ -156,6 +167,10 @@ function onFightMsg(f: LiveFight, msg: FightMessage): LiveFight {
 const closeSpan = (spans: StageSpan[], t: number) => spans.map((s, i) => (i === spans.length - 1 ? { ...s, to: t } : s))
 const pushFeed = (feed: FeedItem[], item: Omit<FeedItem, 'key'>) => [{ ...item, key: ++feedKey }, ...feed].slice(0, 12)
 
+const fightersOf = (s: Pick<State, 'setup' | 'config'>) => fightersFor(s.setup.models, s.config?.models ?? [])
+// 'arm' refuses to start before the server config arrives, so a running match always has it
+const fightSeconds = (s: State) => s.config!.limits.fightSeconds
+
 function advance(s: State, now: number, r: [number, number]): State {
   const round = s.results.length
   switch (s.phase) {
@@ -164,9 +179,9 @@ function advance(s: State, now: number, r: [number, number]): State {
       return {
         ...s,
         phase: 'fighting',
-        endsAt: now + ms(SEC.fight),
-        phaseLen: SEC.fight,
         swapped: r[0] < 0.5,
+        endsAt: now + fightSeconds(s) * 1000,
+        phaseLen: fightSeconds(s),
         fight: { key: fightKey(s), startedAt: now, texts: ['', ''], events: [], outcomes: null, error: null, done: false },
         votes: [0, 0],
         myVote: null,
@@ -189,7 +204,7 @@ function advance(s: State, now: number, r: [number, number]): State {
       const market = done ? s.market : reanchor(s.market, ROUND_ODDS, wins[0], wins[1])
       const priceAfter = done ? (winner === 0 ? 1 : 0) : priceA(market)
       const result: RoundResult = { index: round, winner, votes: byFighter, swapped: s.swapped, priceBefore, priceAfter }
-      const name = mainEvent.fighters[winner].name
+      const name = fightersOf(s)[winner].name
       const spans = closeSpan(s.spans, now).map((sp, i, a) => (i === a.length - 1 ? { ...sp, result: `${name} won` } : sp))
       const base = { ...s, wins, market, fairA: priceAfter, results: [...s.results, result], points: [...s.points, { t: now, priceA: priceAfter }] }
       if (done) {
@@ -206,7 +221,7 @@ function advance(s: State, now: number, r: [number, number]): State {
     }
     case 'final':
       // next match waits for someone to start it; unclaimed winnings carry over
-      return fresh(now, s.balance + (s.claimed ? 0 : s.payout), s.setup)
+      return fresh(now, { balance: s.balance + (s.claimed ? 0 : s.payout), setup: s.setup, config: s.config, configError: s.configError, matchNo: s.matchNo + 1 })
   }
 }
 
@@ -228,16 +243,21 @@ function reducer(s: State, a: Action): State {
     }
     case 'setup':
       if (s.armed || s.phase !== 'trading' || s.results.length > 0) return s
-      return { ...s, setup: { ...s.setup, ...a.setup }, modelLabels: a.setup.models ?? s.modelLabels }
+      return { ...s, setup: { ...s.setup, ...a.setup } }
     case 'arm':
-      if (s.phase !== 'trading' || s.results.length > 0 || !s.setup.task.trim()) return s
+      if (s.phase !== 'trading' || s.results.length > 0 || !s.config || !s.setup.task.trim() || s.setup.models.some((m) => !m)) return s
       return { ...s, armed: true, endsAt: a.bellNow ? a.now : Math.min(s.endsAt, a.now + ms(SEC.start)) }
     case 'fightMsg': {
       if (!s.fight || s.fight.key !== a.key) return s
       const fight = onFightMsg(s.fight, a.msg)
-      if (a.msg.type === 'start') return { ...s, modelLabels: [a.msg.fighters[0]!.label, a.msg.fighters[1]!.label] }
       return { ...s, fight }
     }
+    case 'config': {
+      const models: [string, string] = s.setup.models.some((m) => m) ? s.setup.models : a.config.defaults
+      return { ...s, config: a.config, configError: null, setup: { ...s.setup, models } }
+    }
+    case 'configError':
+      return { ...s, configError: a.message }
     case 'fightClosed':
       if (!s.fight || s.fight.key !== a.key || s.fight.done) return s
       return { ...s, fight: { ...s.fight, done: true, error: a.error ?? 'The fight stream closed early.' } }
@@ -315,6 +335,17 @@ export function useMatch() {
   const [s, dispatch] = useReducer(reducer, null, () => fresh(Date.now()))
 
   useEffect(() => {
+    const abort = new AbortController()
+    fetchFightConfig(abort.signal).then(
+      (config) => dispatch({ type: 'config', config }),
+      (e: unknown) => {
+        if (!abort.signal.aborted) dispatch({ type: 'configError', message: e instanceof Error ? e.message : String(e) })
+      },
+    )
+    return () => abort.abort()
+  }, [])
+
+  useEffect(() => {
     const id = setInterval(() => dispatch({ type: 'tick', now: Date.now(), r: [Math.random(), Math.random()] }), 250)
     return () => clearInterval(id)
   }, [])
@@ -346,7 +377,7 @@ export function useMatch() {
     const round = ROUNDS[s.results.length]!
     const prompt = `${s.setup.task.trim()}\n\nRound ${s.results.length + 1} of 3, "${round.name}": ${round.brief}`
     streamFight(
-      { prompt, category: round.key, fighters: mainEvent.fighters.map((f, i) => ({ name: f.name, model: s.setup.models[i]! })) },
+      { prompt, category: round.key, fighters: fightersOf(s).map((f) => ({ name: f.name, model: f.model })) },
       (msg) => dispatch({ type: 'fightMsg', key: fightK, msg }),
       abort.signal,
     )
@@ -354,7 +385,7 @@ export function useMatch() {
       .catch((e: unknown) => {
         if (!abort.signal.aborted) dispatch({ type: 'fightClosed', key: fightK, error: e instanceof Error ? e.message : String(e) })
       })
-  }, [s.phase, fightK, s.results.length, s.setup.task, s.setup.models])
+  }, [s.phase, fightK, s.results.length, s.setup.task, s.setup.models, s.config])
 
   useEffect(() => {
     if (s.phase !== 'voting') return
@@ -370,6 +401,7 @@ export function useMatch() {
   const start = useCallback((bellNow = false) => dispatch({ type: 'arm', now: Date.now(), bellNow }), [])
 
   // once decided, the winner's shares are worth exactly 1 MON
+  const fighters = useMemo(() => fightersFor(s.setup.models, s.config?.models ?? []), [s.setup.models, s.config])
   const price = s.phase === 'final' ? (s.wins[0] === 2 ? 1 : 0) : priceA(s.market)
   const secondsLeft = s.endsAt === Infinity ? SEC.start : Math.max(0, Math.ceil(((s.endsAt - s.now) * SPEED) / 1000))
   /** index of the round being fought / voted, or next up while trading */
@@ -417,7 +449,11 @@ export function useMatch() {
     fight: s.fight,
     setup: s.setup,
     armed: s.armed,
-    modelLabels: s.modelLabels,
+    fighters,
+    weightClass: matchClass(fighters),
+    matchNo: s.matchNo,
+    config: s.config,
+    configError: s.configError,
     setSetup,
     start,
     now: s.now,

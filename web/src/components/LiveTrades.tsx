@@ -1,4 +1,3 @@
-import { mainEvent } from '../data/mock'
 import type { Match } from '../game/useMatch'
 
 const CORNER = ['var(--color-red)', 'var(--color-blue)'] as const
@@ -26,7 +25,7 @@ export function LiveTrades({ match, limit = 6, plain = false }: { match: Match; 
         <>
         <ol className="divide-y divide-line">
           {items.map((t) => {
-            const f = mainEvent.fighters[t.side]!
+            const f = match.fighters[t.side]
             return (
               <li key={t.key} className={`feed-in flex items-center gap-2 py-1.5 text-sm ${t.mine ? '-mx-2 bg-well px-2' : ''}`}>
                 <span className="w-[4.5rem] shrink-0 truncate font-mono text-xs text-mute" title={t.who}>

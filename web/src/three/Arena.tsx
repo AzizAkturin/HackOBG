@@ -3,12 +3,13 @@ import { Environment, Lightformer, PerformanceMonitor } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { BrightnessContrast, ChromaticAberration, EffectComposer, EffectComposerContext, HueSaturation, SSAO, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { ToneMappingMode, type ChromaticAberrationEffect } from 'postprocessing'
-import { memo, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { brands } from '../data/brands'
 import type { FightSignals } from '../game/fightStream'
 import type { Phase } from '../game/arenaPhase'
-import { mainEvent } from '../data/mock'
+import type { MatchFighter } from '../data/fighters'
+import type { Broadcast } from './broadcast'
 import { attachDebug } from './debug'
 import { FightDirector, type FightEvent } from './director'
 import { CameraRig, DirectorTick, Sparks } from './Effects'
@@ -20,6 +21,8 @@ import { firmware } from './robots/firmware'
 import { Venue } from './Venue'
 
 interface Props {
+  fighters: MatchFighter[]
+  broadcast: Broadcast
   selected: number | null
   phase: Phase
   onSelect: (i: number) => void
@@ -50,18 +53,20 @@ function CrowdNormals() {
   return null
 }
 
-function Arena({ selected, phase, onSelect, onEvent, signals, winner = null }: Props) {
+const rigOf = (f: MatchFighter) => ({ scale: chassis[brands[f.brand].chassis].rig.scale, wheel: !!chassis[brands[f.brand].chassis].rig.wheel })
+
+function Arena({ fighters, broadcast, selected, phase, onSelect, onEvent, signals, winner = null }: Props) {
   const locked = phase !== 'betting'
   const reduced = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches, [])
   const director = useMemo(() => {
     const d = new FightDirector()
     d.reduced = reduced
-    d.configure(
-      mainEvent.fighters.map((f) => ({ scale: chassis[brands[f.brand].chassis].rig.scale, wheel: !!chassis[brands[f.brand].chassis].rig.wheel })),
-      mainEvent.fighters,
-    )
     return d
   }, [reduced])
+  // layout effect so the rig is set before the first frame renders
+  useLayoutEffect(() => {
+    director.configure(fighters.map(rigOf), fighters)
+  }, [director, fighters])
   useEffect(() => {
     director.winner = winner
   }, [director, winner])
@@ -101,16 +106,16 @@ function Arena({ selected, phase, onSelect, onEvent, signals, winner = null }: P
         <Lightformer form="ring" intensity={0.6} color="#ffffff" position={[0, 3, 8]} scale={3} />
       </Environment>
 
-      <Venue reduced={reduced} director={director} />
-      <Ring resting={phase === 'rest'} reduced={reduced} />
-      {mainEvent.fighters.map((f, i) => (
+      <Venue reduced={reduced} director={director} broadcast={broadcast} />
+      <Ring resting={phase === 'rest'} reduced={reduced} broadcast={broadcast} />
+      {fighters.map((f, i) => (
         <Robot
-          key={f.id}
+          key={`${i}-${f.brand}`}
           index={i}
           brand={brands[f.brand]}
           chassis={chassis[brands[f.brand].chassis]}
           firmware={firmware[f.weightClass]}
-          number={f.id}
+          number={i + 1}
           director={director}
           selected={selected === i}
           locked={locked}

@@ -15,9 +15,17 @@ const app = Fastify({ logger: true });
 await app.register(cors, { origin: env.WEB_ORIGIN, methods: ["GET", "POST", "PATCH"] });
 await app.register(websocket);
 
-const accounts = createAccounts(db, { domain: new URL(env.WEB_ORIGIN).host, chainId: publicClient.chain.id });
+// SIWE messages are signed for the primary (first) web origin
+const accounts = createAccounts(db, { domain: new URL(env.WEB_ORIGIN[0]!).host, chainId: publicClient.chain.id });
 await app.register(authRoutes(accounts).plugin);
-await app.register(fightRoutes());
+await app.register(
+  fightRoutes({
+    limits: { maxTokens: env.FIGHT_MAX_TOKENS, fightSeconds: env.FIGHT_SECONDS },
+    defaults: [env.FIGHT_DEFAULT_MODELS[0]!, env.FIGHT_DEFAULT_MODELS[1]!],
+  }),
+);
+
+app.get("/live", async () => ({ ok: true }));
 
 app.get("/health", async () => {
   const [block, operatorBal, dripBal] = await Promise.all([

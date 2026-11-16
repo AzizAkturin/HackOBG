@@ -1,4 +1,5 @@
-export const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8787'
+// vite.config.ts refuses a production build without VITE_API_URL, so the localhost fallback is dev only
+export const API_URL = ((import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:8787').replace(/\/+$/, '')
 
 import type { AvatarId } from '@wab/shared'
 
