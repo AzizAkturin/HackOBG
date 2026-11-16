@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { coefficient } from '@wab/shared'
-import type { MarketHistory, PricePoint } from '../data/mockMarket'
+import type { MarketHistory, PricePoint } from '../game/marketHistory'
 
 export type ChartFighter = { name: string }
 
@@ -32,7 +32,8 @@ function priceAt(points: PricePoint[], t: number) {
 type Props = {
   fighters: [ChartFighter, ChartFighter]
   history: MarketHistory
-  sample?: boolean
+  /** the market runs locally on the contract's math until the contract is deployed; the fights themselves are real */
+  simulated?: boolean
   /** Narrow column next to the arena: tighter legend, chart fills the column's height. */
   compact?: boolean
   className?: string
@@ -40,7 +41,7 @@ type Props = {
   children?: ReactNode
 }
 
-export function MarketChart({ fighters, history, sample, compact, className = '', children }: Props) {
+export function MarketChart({ fighters, history, simulated, compact, className = '', children }: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
   const [H, setH] = useState(260)
@@ -151,9 +152,9 @@ export function MarketChart({ fighters, history, sample, compact, className = ''
         <h2 id="market-title" className="font-display text-xl font-bold uppercase tracking-wide text-ink">
           Market
         </h2>
-        {sample && (
-          <span className="label border border-line px-2 py-0.5 text-[10px] text-mute" title="Simulated match until live matches run on Monad">
-            Sample data
+        {simulated && (
+          <span className="label border border-line px-2 py-0.5 text-[10px] text-mute" title="Fights are live LLM calls. Trades and crowd are simulated with the contract's math until it is deployed on Monad.">
+            Simulated market
           </span>
         )}
       </header>

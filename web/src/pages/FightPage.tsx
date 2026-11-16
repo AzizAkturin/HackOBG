@@ -23,7 +23,7 @@ export function FightPage({ match, onPlaced }: { match: Match; onPlaced: (msg: s
           <span className="text-blue">{mainEvent.weightClass}</span>
           <span>{roundLabel(mainEvent.roundId)}</span>
         </p>
-        <h1 className="mt-1 text-xl leading-tight sm:text-2xl">{mainEvent.task}</h1>
+        <h1 className="mt-1 text-xl leading-tight sm:text-2xl">{match.setup.task}</h1>
       </header>
 
       {/* stays pinned while scrolling to vote or trade, so the current round is always visible */}
@@ -36,7 +36,7 @@ export function FightPage({ match, onPlaced }: { match: Match; onPlaced: (msg: s
           <Octagon match={match} selected={side} onSelect={(i) => setSide(i as Side)} />
           <RoundDesk match={match} />
         </div>
-        <MarketChart fighters={[{ name: red.name }, { name: blue.name }]} history={match.history} sample compact className="min-w-0 lg:sticky lg:top-[96px]">
+        <MarketChart fighters={[{ name: red.name }, { name: blue.name }]} history={match.history} simulated compact className="min-w-0 lg:sticky lg:top-[96px]">
           <TradeTicket match={match} side={side} onSide={setSide} onDone={onPlaced} />
           <LiveTrades match={match} />
         </MarketChart>
