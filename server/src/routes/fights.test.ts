@@ -12,7 +12,7 @@ const fakeRun = async (opts: RunFighterOptions): Promise<RunResult> => {
 
 const app = async () => {
   const a = Fastify();
-  await a.register(fightRoutes({ runFighter: fakeRun }));
+  await a.register(fightRoutes({ runFighter: fakeRun, limits: { maxTokens: 1500, fightSeconds: 60 }, defaults: ["a/b", "c/d"] }));
   return a;
 };
 

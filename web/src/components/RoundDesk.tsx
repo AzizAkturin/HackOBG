@@ -1,13 +1,10 @@
-import { useEffect, useState } from 'react'
-import { formatClock, mainEvent } from '../data/mock'
+import { formatClock } from '../data/fighters'
 import { ROUNDS } from '../data/matchContent'
-import { listModels, type FightModel } from '../game/liveFight'
 import { SEC, type Match } from '../game/useMatch'
 
 const CORNER = ['var(--color-red)', 'var(--color-blue)'] as const
 const letter = (label: number) => String.fromCharCode(65 + label)
 const pct = (p: number) => `${Math.round(p * 100)}%`
-const name = (i: number) => mainEvent.fighters[i]!.name
 /** Fighter behind blind label: label 0 is fighter B when swapped. */
 const fighterOf = (label: number, swapped: boolean) => (swapped ? 1 - label : label)
 
@@ -62,12 +59,8 @@ const KO_TEXT: Record<string, string> = {
 
 /** Write the task and pick the two OpenRouter models. Any OpenRouter slug works, so paid models can use credit. */
 function Setup({ match }: { match: Match }) {
-  const [models, setModels] = useState<FightModel[]>([])
-  const [loadError, setLoadError] = useState<string | null>(null)
   const locked = match.armed
-  useEffect(() => {
-    listModels().then(setModels, (e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)))
-  }, [])
+  const ready = !!match.config && !!match.setup.task.trim() && match.setup.models.every(Boolean)
   const setModel = (i: 0 | 1, id: string) => {
     const next: [string, string] = [...match.setup.models]
     next[i] = id
@@ -85,6 +78,7 @@ function Setup({ match }: { match: Match }) {
         <span className="label text-[11px] text-mute">Prompt for both robots</span>
         <textarea
           value={match.setup.task}
+          placeholder="e.g. Pitch a startup that makes laundromats profitable again."
           onChange={(e) => match.setSetup({ task: e.target.value })}
           disabled={locked}
           rows={3}
@@ -93,10 +87,10 @@ function Setup({ match }: { match: Match }) {
         />
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
-        {mainEvent.fighters.map((f, i) => (
-          <label key={f.id} className="block">
+        {match.fighters.map((f, i) => (
+          <label key={i} className="block">
             <span className="label text-[11px]" style={{ color: CORNER[i] }}>
-              {f.name} · model
+              {f.name} · {f.label}
             </span>
             <input
               list="fight-models"
@@ -110,36 +104,39 @@ function Setup({ match }: { match: Match }) {
           </label>
         ))}
         <datalist id="fight-models">
-          {models.map((m) => (
+          {(match.config?.models ?? []).map((m) => (
             <option key={m.id} value={m.id}>
               {m.label} · {m.maker}
             </option>
           ))}
         </datalist>
       </div>
-      {loadError && <p className="text-sm text-red">Server unreachable ({loadError}). Is `pnpm dev:server` running?</p>}
+      {match.configError && <p className="text-sm text-red">Can't reach the fight server ({match.configError}).</p>}
+      {!match.config && !match.configError && <p className="text-sm text-mute">Connecting to the fight server…</p>}
       <div className="flex flex-wrap items-center gap-2">
         {!locked && (
-          <button type="submit" disabled={!match.setup.task.trim()} className="btn-pixel min-h-11 cursor-pointer bg-blue px-4 font-display font-bold uppercase tracking-wider text-white disabled:opacity-50">
+          <button type="submit" disabled={!ready} className="btn-pixel min-h-11 cursor-pointer bg-blue px-4 font-display font-bold uppercase tracking-wider text-white disabled:opacity-50">
             Start match
           </button>
         )}
         <button
           type="button"
           onClick={() => match.start(true)}
-          disabled={!match.setup.task.trim()}
+          disabled={!ready}
           className="btn-pixel min-h-11 cursor-pointer bg-red px-4 font-display font-bold uppercase tracking-wider text-white disabled:opacity-50"
         >
           Ring the bell now
         </button>
-        <span className="text-sm text-mute">Each round is one live call per robot on OpenRouter (6 per match at most).</span>
+        <span className="text-sm text-mute">
+          Each round is one live call per robot on OpenRouter (6 per match at most)
+          {match.config && `, up to ${match.config.limits.maxTokens} tokens and ${match.config.limits.fightSeconds}s each`}.
+        </span>
       </div>
     </form>
   )
 }
 
 function Start({ match }: { match: Match }) {
-  const [red, blue] = mainEvent.fighters
   return (
     <>
       {match.armed ? (
@@ -149,8 +146,7 @@ function Start({ match }: { match: Match }) {
       )}
       <Setup match={match} />
       <p className="mt-3 text-lg text-ink">
-        Opening odds come from their records: {red.name} {red.record[0]}–{red.record[1]} vs {blue.name} {blue.record[0]}–{blue.record[1]}, so{' '}
-        <strong>{red.name} opens at {pct(match.openingPriceA)}</strong>.
+        No fight history is on record yet, so <strong>both corners open at {pct(match.openingPriceA)}</strong>.
       </p>
       <ol className="mt-3 grid gap-2 sm:grid-cols-3">
         {ROUNDS.map((r, i) => (
@@ -277,7 +273,7 @@ function RoundResult({ match }: { match: Match }) {
     <>
       <DeskHeader
         kicker={`Round ${res.index + 1} result · trading reopened`}
-        title={`${name(res.winner)} takes the ${r.name.toLowerCase()}`}
+        title={`${match.fighters[res.winner].name} takes the ${r.name.toLowerCase()}`}
         clockLabel={nextRound ? `${nextRound.short} bell in` : undefined}
         seconds={match.secondsLeft}
       />
@@ -290,7 +286,7 @@ function RoundResult({ match }: { match: Match }) {
               <div key={f} className="mb-2">
                 <p className="flex items-baseline justify-between text-base">
                   <span>
-                    <strong style={{ color: CORNER[f] }}>{name(f)}</strong> <span className="text-mute">wrote Pitch {letter(label)}</span>
+                    <strong style={{ color: CORNER[f] }}>{match.fighters[f]!.name}</strong> <span className="text-mute">wrote Pitch {letter(label)}</span>
                     {res.winner === f && ' ★'}
                   </span>
                   <span className="font-display text-lg tabular-nums">
@@ -305,7 +301,7 @@ function RoundResult({ match }: { match: Match }) {
           })}
         </div>
         <div className="border-l-0 border-line sm:border-l sm:pl-4">
-          <p className="label text-[10px] text-mute">{name(0)} price</p>
+          <p className="label text-[10px] text-mute">{match.fighters[0].name} price</p>
           <p className="font-display text-2xl font-bold tabular-nums">
             {pct(res.priceBefore)} → {pct(res.priceAfter)}
           </p>
@@ -324,13 +320,13 @@ function Final({ match }: { match: Match }) {
   const lost = match.shares[1 - w]! > 0 && match.shares[w]! === 0
   return (
     <>
-      <DeskHeader kicker="Stage 5 · Result" title={`${name(w)} wins ${match.wins[w]}–${match.wins[1 - w]}`} clockLabel="Next match in" seconds={match.secondsLeft} />
+      <DeskHeader kicker="Stage 5 · Result" title={`${match.fighters[w].name} wins ${match.wins[w]}–${match.wins[1 - w]}`} clockLabel="Setup reopens in" seconds={match.secondsLeft} />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-2 p-4" style={{ borderColor: CORNER[w] }}>
         <p className="text-lg">
           {match.payout > 0
-            ? `Your ${match.payout.toFixed(3)} shares of ${name(w)} pay 1 MON each.`
+            ? `Your ${match.payout.toFixed(3)} shares of ${match.fighters[w].name} pay 1 MON each.`
             : lost
-              ? `Your shares were on ${name(1 - w)}. They expire worthless.`
+              ? `Your shares were on ${match.fighters[1 - w].name}. They expire worthless.`
               : 'You had no position this match.'}
         </p>
         {match.payout > 0 && (

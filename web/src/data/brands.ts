@@ -36,6 +36,7 @@ export const brands = {
   recursive: { label: 'Flint · Recursive', primary: '#aeb8c8', secondary: '#606772', gear: '#272a30', glow: '#00e5ff', ui: '#8fdcff', ink: '#3a4a66', roughness: 0.26, chassis: 'lantern' },
   anthropic: { label: 'Claude · Anthropic', primary: '#d77a5c', secondary: '#966556', gear: '#3a241d', glow: '#ffd9c2', ui: '#e6937a', ink: '#b5573a', roughness: 0.42, chassis: 'silverback' },
   openai: { label: 'GPT · OpenAI', primary: '#f3f3ef', secondary: '#9fb8b0', gear: '#2c3a37', glow: '#3df5b8', ui: '#19c37d', ink: '#0b7a5f', roughness: 0.26, chassis: 'sable' },
+  generic: { label: 'Open model', primary: '#5c6470', secondary: '#9aa3ad', gear: '#23272d', glow: '#ffffff', ui: '#c9d1da', ink: '#3b4450', roughness: 0.35, chassis: 'lantern' },
 } satisfies Record<string, Brand>
 
 export type BrandKey = keyof typeof brands

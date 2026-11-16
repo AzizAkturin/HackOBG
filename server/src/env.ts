@@ -9,7 +9,11 @@ const optional = <T extends z.ZodType>(schema: T) =>
 const schema = z.object({
   PORT: z.coerce.number().int().default(8787),
   DB_PATH: z.string().default("./data/wab.sqlite"),
-  WEB_ORIGIN: z.string().default("http://localhost:5173"),
+  WEB_ORIGIN: z
+    .string()
+    .default("http://localhost:5173")
+    .transform((v) => v.split(",").map((o) => o.trim().replace(/\/+$/, "")).filter(Boolean))
+    .pipe(z.array(z.url()).min(1)),
   MONAD_RPC_HTTP: z.url().default(PUBLIC_RPC_HTTP),
   MONAD_RPC_WS: optional(z.url()),
   OPERATOR_PK: hex(64),
@@ -22,6 +26,13 @@ const schema = z.object({
   NVIDIA_BASE_URL: z.url().default("https://integrate.api.nvidia.com/v1"),
   OPENROUTER_API_KEY: z.string().startsWith("sk-or-"),
   OPENROUTER_BASE_URL: z.url().default("https://openrouter.ai/api/v1"),
+  FIGHT_DEFAULT_MODELS: z
+    .string()
+    .default("anthropic/claude-sonnet-5.5,openai/gpt-6.1-sol")
+    .transform((v) => v.split(",").map((m) => m.trim()).filter(Boolean))
+    .pipe(z.array(z.string()).length(2)),
+  FIGHT_MAX_TOKENS: z.coerce.number().int().min(100).max(16000).default(1500),
+  FIGHT_SECONDS: z.coerce.number().int().min(10).max(600).default(60),
   PRIVY_APP_ID: optional(z.string()),
   PRIVY_APP_SECRET: optional(z.string()),
 });

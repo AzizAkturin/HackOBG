@@ -1,6 +1,6 @@
 // firmware only swaps one material, never geometry
 import * as THREE from 'three'
-import { classColor, type WeightClass } from '../../data/mock'
+import { classColor, type WeightClass } from '../../data/fighters'
 
 export type FirmwareMode = 'flicker' | 'pulse' | 'scan'
 

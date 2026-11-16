@@ -1,24 +1,26 @@
 import type { FightEvent } from '@wab/shared'
+import type { CatalogModel } from '../data/fighters'
 import { API_URL } from '../wallet/api'
 
-export type FightModel = { id: string; label: string; maker: string; weightClass: string }
+export type FightLimits = { maxTokens: number; fightSeconds: number }
+
+/** What the server offers: the model catalog, the starting pair, and the fight limits it enforces. */
+export type FightConfig = { models: CatalogModel[]; defaults: [string, string]; limits: FightLimits }
 
 export type FightOutcome = { idx: number; status: 'finished' | 'ko'; output: string; pitch: string; reason?: string }
 
 /** One line of the server's NDJSON fight stream (server/src/routes/fights.ts). */
 export type FightMessage =
-  | { type: 'start'; fighters: { name: string; model: string; label: string }[]; limits: { maxTokens: number; fightSeconds: number } }
+  | { type: 'start'; fighters: { name: string; model: string; label: string }[]; limits: FightLimits }
   | { type: 'event'; tMs: number; event: FightEvent }
   | { type: 'text'; fighter: number; text: string }
   | { type: 'done'; outcomes: FightOutcome[] }
   | { type: 'error'; message: string }
 
-export const DEFAULT_MODELS: [string, string] = ['nemotron-3.5-lightning', 'ernie-5.5-flash']
-
-export async function listModels(): Promise<FightModel[]> {
-  const res = await fetch(`${API_URL}/api/fights/models`)
-  if (!res.ok) throw new Error(`models: HTTP ${res.status}`)
-  return ((await res.json()) as { models: FightModel[] }).models
+export async function fetchFightConfig(signal?: AbortSignal): Promise<FightConfig> {
+  const res = await fetch(`${API_URL}/api/fights/models`, { signal })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return (await res.json()) as FightConfig
 }
 
 /** Runs one real fight on the server and calls onMessage for each streamed line. Resolves when the stream closes. */

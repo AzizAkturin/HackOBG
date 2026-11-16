@@ -5,7 +5,7 @@ import { Octagon } from '../components/Octagon'
 import { RoundDesk } from '../components/RoundDesk'
 import { StageTracker } from '../components/StageTracker'
 import { TradeTicket } from '../components/TradeTicket'
-import { mainEvent, roundLabel } from '../data/mock'
+import { matchLabel } from '../data/fighters'
 import type { Match, Side } from '../game/useMatch'
 
 /**
@@ -14,14 +14,14 @@ import type { Match, Side } from '../game/useMatch'
  */
 export function FightPage({ match, onPlaced }: { match: Match; onPlaced: (msg: string) => void }) {
   const [side, setSide] = useState<Side>(0)
-  const [red, blue] = mainEvent.fighters
+  const [red, blue] = match.fighters
 
   return (
     <main className="mx-auto max-w-[1400px] px-4 pb-12 pt-5">
       <header className="min-w-0">
         <p className="label flex flex-wrap items-center gap-x-3 text-mute">
-          <span className="text-blue">{mainEvent.weightClass}</span>
-          <span>{roundLabel(mainEvent.roundId)}</span>
+          <span className="text-blue">{match.weightClass}</span>
+          <span>{matchLabel(match.matchNo)}</span>
         </p>
         <h1 className="mt-1 text-xl leading-tight sm:text-2xl">{match.setup.task}</h1>
       </header>

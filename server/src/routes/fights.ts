@@ -2,9 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { runFighter as gatewayRunFighter, type RunFighterOptions, type RunResult } from "../llm/gateway.ts";
 import { MODELS, type ModelEntry } from "../llm/models.ts";
+import type { FightLimits } from "../fight/types.ts";
 import { runFight } from "../fight/run.ts";
-
-export const FIGHT_LIMITS = { maxTokens: 1500, fightSeconds: 60 };
 
 const OPENROUTER_SLUG = /^[\w.-]+\/[\w.:-]+$/;
 
@@ -14,6 +13,8 @@ export const openRouterModels = (): ModelEntry[] =>
     const routes = m.routes.filter((r) => r.provider === "openrouter");
     return routes.length ? [{ ...m, routes: [routes[0]!, ...routes.slice(1)] }] : [];
   });
+
+const vendorOf = (m: ModelEntry) => m.routes[0].model.split("/")[0]!;
 
 /** A registry id, or any OpenRouter slug ("vendor/model") so paid models can be used with credit. */
 export function resolveModel(id: string): ModelEntry | null {
@@ -41,18 +42,29 @@ const persona = (name: string) =>
   `You are ${name}, a robot fighter in an AI fight club. The crowd reads your answer blind next to a rival's and votes for the better one. Be specific, vivid and concrete. Plain text, no markdown headings.`;
 
 export type FightMessage =
-  | { type: "start"; fighters: { name: string; model: string; label: string }[]; limits: typeof FIGHT_LIMITS }
+  | { type: "start"; fighters: { name: string; model: string; label: string }[]; limits: FightLimits }
   | { type: "event"; tMs: number; event: unknown }
   | { type: "text"; fighter: number; text: string }
   | { type: "done"; outcomes: { idx: number; status: string; output: string; pitch: string; reason?: string }[] }
   | { type: "error"; message: string };
 
-export function fightRoutes(deps: { runFighter?: (opts: RunFighterOptions) => Promise<RunResult> } = {}) {
-  const run = deps.runFighter ?? gatewayRunFighter;
+export type FightConfig = {
+  limits: FightLimits;
+  /** model ids each corner starts with on the setup screen */
+  defaults: [string, string];
+  runFighter?: (opts: RunFighterOptions) => Promise<RunResult>;
+};
+
+export function fightRoutes(config: FightConfig) {
+  const run = config.runFighter ?? gatewayRunFighter;
+  const FIGHT_LIMITS = config.limits;
+  for (const id of config.defaults) if (!resolveModel(id)) throw new Error(`FIGHT_DEFAULT_MODELS: unknown model ${id}`);
 
   return async (app: FastifyInstance) => {
     app.get("/api/fights/models", async () => ({
-      models: openRouterModels().map((m) => ({ id: m.id, label: m.label, maker: m.maker, weightClass: m.weightClass })),
+      models: openRouterModels().map((m) => ({ id: m.id, label: m.label, maker: m.maker, vendor: vendorOf(m), weightClass: m.weightClass })),
+      defaults: config.defaults,
+      limits: FIGHT_LIMITS,
     }));
 
     // streams NDJSON (one FightMessage per line) for the life of one fight; closing the request aborts the LLM calls

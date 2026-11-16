@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { coefficient } from '@wab/shared'
-import { formatClock, mainEvent } from '../data/mock'
+import { formatClock } from '../data/fighters'
 import { LIMITS, type Match, type Side } from '../game/useMatch'
 
 const CORNER = ['var(--color-red)', 'var(--color-blue)'] as const
@@ -13,7 +13,7 @@ export function TradeTicket({ match, side, onSide, onDone }: { match: Match; sid
   const [raw, setRaw] = useState('0.1')
   const amount = Number(raw)
   const prices = [match.priceA, 1 - match.priceA]
-  const f = mainEvent.fighters[side]!
+  const f = match.fighters[side]
 
   let error = ''
   if (!Number.isFinite(amount) || amount <= 0) error = 'Enter an amount'
@@ -49,11 +49,11 @@ export function TradeTicket({ match, side, onSide, onDone }: { match: Match; sid
 
       {/* side picker */}
       <div role="radiogroup" aria-label="Robot to buy" className="mt-2 grid grid-cols-2 gap-1.5">
-        {mainEvent.fighters.map((fi, i) => {
+        {match.fighters.map((fi, i) => {
           const on = side === i
           return (
             <button
-              key={fi.id}
+              key={i}
               type="button"
               role="radio"
               aria-checked={on}
@@ -132,7 +132,7 @@ export function TradeTicket({ match, side, onSide, onDone }: { match: Match; sid
             match.shares[i]! > 0 ? (
               <li key={i} className="flex items-center justify-between gap-2 text-sm">
                 <span>
-                  <strong style={{ color: CORNER[i] }}>{mainEvent.fighters[i]!.name}</strong>{' '}
+                  <strong style={{ color: CORNER[i] }}>{match.fighters[i]!.name}</strong>{' '}
                   <span className="tabular-nums text-mute">{match.shares[i]!.toFixed(3)} shares · pays {mon(match.shares[i]!)} MON if wins</span>
                 </span>
                 <button
