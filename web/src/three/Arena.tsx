@@ -1,9 +1,9 @@
 // The 3D main event: two branded robots fighting in a championship ring.
 import { Environment, Lightformer, PerformanceMonitor } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { BrightnessContrast, ChromaticAberration, EffectComposer, HueSaturation, SSAO, ToneMapping, Vignette } from '@react-three/postprocessing'
+import { BrightnessContrast, ChromaticAberration, EffectComposer, EffectComposerContext, HueSaturation, SSAO, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { ToneMappingMode, type ChromaticAberrationEffect } from 'postprocessing'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { brands } from '../data/brands'
 import type { FightSignals } from '../game/fightStream'
@@ -12,6 +12,7 @@ import { mainEvent } from '../data/mock'
 import { attachDebug } from './debug'
 import { FightDirector, type FightEvent } from './director'
 import { CameraRig, DirectorTick, Sparks } from './Effects'
+import { patchCrowdNormals } from './crowd/Crowd'
 import { Ring } from './Ring'
 import { Robot } from './Robot'
 import { chassis } from './robots/chassis'
@@ -37,6 +38,16 @@ function ImpactLens({ director }: { director: FightDirector }) {
     ref.current?.offset.set(k, k * 0.6)
   })
   return <ChromaticAberration ref={ref} offset={offset} radialModulation={false} modulationOffset={0} />
+}
+
+/** The SSAO normal pass swaps in its own material, which has to animate the crowd like the real ones do. */
+function CrowdNormals() {
+  const { normalPass } = useContext(EffectComposerContext)
+  useEffect(() => {
+    const mat = (normalPass as unknown as { renderPass: { overrideMaterial: THREE.Material } } | null)?.renderPass.overrideMaterial
+    if (mat) patchCrowdNormals(mat)
+  }, [normalPass])
+  return null
 }
 
 function Arena({ selected, phase, onSelect, onEvent, signals, winner = null }: Props) {
@@ -111,6 +122,7 @@ function Arena({ selected, phase, onSelect, onEvent, signals, winner = null }: P
 
       <EffectComposer multisampling={4} enableNormalPass>
         <SSAO samples={16} rings={7} radius={0.08} intensity={1.5} luminanceInfluence={0.5} worldDistanceThreshold={30} worldDistanceFalloff={10} worldProximityThreshold={0.5} worldProximityFalloff={0.3} />
+        <CrowdNormals />
         <ImpactLens director={director} />
         <HueSaturation saturation={-0.28} />
         <BrightnessContrast brightness={-0.03} contrast={0.04} />

@@ -1,5 +1,4 @@
-import { useCallback, useState } from 'react'
-import { FighterCard } from '../components/FighterCard'
+import { useState } from 'react'
 import { LiveTrades } from '../components/LiveTrades'
 import { MarketChart } from '../components/MarketChart'
 import { Octagon } from '../components/Octagon'
@@ -17,22 +16,12 @@ export function FightPage({ match, onPlaced }: { match: Match; onPlaced: (msg: s
   const [side, setSide] = useState<Side>(0)
   const [red, blue] = mainEvent.fighters
 
-  const pick = useCallback((i: number) => {
-    setSide(i as Side)
-    // On stacked layouts the ticket sits below the ring; bring it into view.
-    if (window.matchMedia('(max-width: 1023px)').matches) {
-      const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      document.getElementById('ticket-title')?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' })
-    }
-  }, [])
-
   return (
     <main className="mx-auto max-w-[1400px] px-4 pb-12 pt-5">
       <header className="min-w-0">
         <p className="label flex flex-wrap items-center gap-x-3 text-mute">
           <span className="text-blue">{mainEvent.weightClass}</span>
           <span>{roundLabel(mainEvent.roundId)}</span>
-          <span>Best of 3</span>
         </p>
         <h1 className="mt-1 text-xl leading-tight sm:text-2xl">{mainEvent.task}</h1>
       </header>
@@ -44,7 +33,7 @@ export function FightPage({ match, onPlaced }: { match: Match; onPlaced: (msg: s
 
       <div className="mt-4 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="min-w-0 space-y-4">
-          <Octagon match={match} selected={side} onSelect={pick} />
+          <Octagon match={match} selected={side} onSelect={(i) => setSide(i as Side)} />
           <RoundDesk match={match} />
         </div>
         <MarketChart fighters={[{ name: red.name }, { name: blue.name }]} history={match.history} sample compact className="min-w-0 lg:sticky lg:top-[96px]">
@@ -53,10 +42,6 @@ export function FightPage({ match, onPlaced }: { match: Match; onPlaced: (msg: s
         </MarketChart>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-        <FighterCard index={0} match={match} selected={side === 0} onSelect={() => pick(0)} />
-        <FighterCard index={1} match={match} selected={side === 1} onSelect={() => pick(1)} />
-      </div>
     </main>
   )
 }

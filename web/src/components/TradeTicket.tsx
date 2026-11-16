@@ -94,14 +94,10 @@ export function TradeTicket({ match, side, onSide, onDone }: { match: Match; sid
               </button>
             ))}
           </div>
-          <dl id="amount-help" className="mt-2 grid grid-cols-3 gap-1 text-sm">
-            <div>
-              <dt className="text-mute">Shares</dt>
-              <dd className="font-display text-lg font-semibold tabular-nums">{quote ? quote.shares.toFixed(3) : '—'}</dd>
-            </div>
+          <dl id="amount-help" className="mt-2 grid grid-cols-2 gap-1 text-sm">
             <div>
               <dt className="text-mute">Pays if wins</dt>
-              <dd className="font-display text-lg font-semibold tabular-nums text-green">{quote ? `${mon(quote.shares)}` : '—'}</dd>
+              <dd className="font-display text-lg font-semibold tabular-nums text-green">{quote ? `${mon(quote.shares)} MON` : '—'}</dd>
             </div>
             <div>
               <dt className="text-mute">Coefficient</dt>
@@ -137,7 +133,7 @@ export function TradeTicket({ match, side, onSide, onDone }: { match: Match; sid
               <li key={i} className="flex items-center justify-between gap-2 text-sm">
                 <span>
                   <strong style={{ color: CORNER[i] }}>{mainEvent.fighters[i]!.name}</strong>{' '}
-                  <span className="tabular-nums text-mute">{match.shares[i]!.toFixed(3)} shares</span>
+                  <span className="tabular-nums text-mute">{match.shares[i]!.toFixed(3)} shares · pays {mon(match.shares[i]!)} MON if wins</span>
                 </span>
                 <button
                   type="button"

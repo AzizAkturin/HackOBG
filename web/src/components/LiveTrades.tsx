@@ -24,17 +24,9 @@ export function LiveTrades({ match, limit = 6, plain = false }: { match: Match; 
         <p className="mt-1 text-sm text-mute">{match.tradingOpen ? 'No trades yet. Be the first.' : 'No trades yet this match.'}</p>
       ) : (
         <>
-        <p className="mt-1 flex gap-2 text-[11px] uppercase tracking-wider text-mute" aria-hidden>
-          <span className="w-[4.5rem] shrink-0">Trader</span>
-          <span className="flex-1">Trade</span>
-          <span className="w-10 shrink-0 text-right">MON</span>
-          <span className="w-9 shrink-0 text-right">Price</span>
-          <span className="w-8 shrink-0 text-right">Ago</span>
-        </p>
         <ol className="divide-y divide-line">
           {items.map((t) => {
             const f = mainEvent.fighters[t.side]!
-            const sidePrice = t.side === 0 ? t.priceA : 1 - t.priceA
             return (
               <li key={t.key} className={`feed-in flex items-center gap-2 py-1.5 text-sm ${t.mine ? '-mx-2 bg-well px-2' : ''}`}>
                 <span className="w-[4.5rem] shrink-0 truncate font-mono text-xs text-mute" title={t.who}>
@@ -46,9 +38,6 @@ export function LiveTrades({ match, limit = 6, plain = false }: { match: Match; 
                   <span className="font-semibold">{f.name}</span>
                 </span>
                 <span className="w-10 shrink-0 text-right font-display tabular-nums">{t.mon.toFixed(2)}</span>
-                <span className="w-9 shrink-0 text-right tabular-nums text-mute" title={`${f.name} price after this trade`}>
-                  {Math.round(sidePrice * 100)}%
-                </span>
                 <span className="w-8 shrink-0 text-right text-xs tabular-nums text-mute">{ago(match.now - t.at)}</span>
               </li>
             )

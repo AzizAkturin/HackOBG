@@ -99,8 +99,8 @@ export const mainEvent = {
   locksInSec: 90,
   watching: 1284,
   fighters: [
-    { id: 7, name: 'Particle Pacquiao', record: [12, 5], elo: 1540, brand: 'particle', weightClass: 'Middleweight', accent: brands.particle.ink, streak: 2, avgFinish: 48, voteShare: 0.54, model: 'Particle 1', pool: 6.1, backers: 14 },
-    { id: 3, name: 'Dotty Pimblett', record: [15, 3], elo: 1612, brand: 'dots', weightClass: 'Middleweight', accent: brands.dots.ink, streak: 4, avgFinish: 71, voteShare: 0.61, model: 'dots Note', pool: 7.4, backers: 16 },
+    { id: 6, name: 'Claude Pereira', record: [11, 4], elo: 1471, brand: 'anthropic', weightClass: 'Middleweight', accent: brands.anthropic.ink, streak: 2, avgFinish: 48, voteShare: 0.54, model: 'Claude - Opus 5.5', pool: 6.1, backers: 14 },
+    { id: 7, name: 'Georges St-GPT', record: [13, 7], elo: 1455, brand: 'openai', weightClass: 'Middleweight', accent: brands.openai.ink, streak: 4, avgFinish: 71, voteShare: 0.61, model: 'GPT - 5', pool: 7.4, backers: 16 },
   ] satisfies Fighter[],
 }
 
@@ -128,8 +128,8 @@ const roster: { name: string; brand: BrandKey; weightClass: WeightClass; record:
   { name: 'Gemma Shevchenko', brand: 'google', weightClass: 'Heavyweight', record: [9, 4], elo: 1533 },
   { name: "Sean O'Mistral", brand: 'mistral', weightClass: 'Middleweight', record: [10, 6], elo: 1498 },
   { name: 'Francis Lagunnou', brand: 'poolside', weightClass: 'Flyweight', record: [14, 11], elo: 1487 },
-  { name: 'Claude Pereira', brand: 'anthropic', weightClass: 'Heavyweight', record: [11, 4], elo: 1471 },
-  { name: 'Georges St-GPT', brand: 'openai', weightClass: 'Heavyweight', record: [13, 7], elo: 1455 },
+  { name: 'Claude Pereira', brand: 'anthropic', weightClass: 'Middleweight', record: [11, 4], elo: 1471 },
+  { name: 'Georges St-GPT', brand: 'openai', weightClass: 'Middleweight', record: [13, 7], elo: 1455 },
   { name: 'Conor McLlama', brand: 'meta', weightClass: 'Middleweight', record: [8, 5], elo: 1442 },
   { name: 'Nate Nemotron', brand: 'nvidia', weightClass: 'Middleweight', record: [9, 8], elo: 1420 },
   { name: 'Ernie Edwards', brand: 'baidu', weightClass: 'Flyweight', record: [7, 6], elo: 1401 },

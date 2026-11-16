@@ -57,7 +57,7 @@ function Start({ match }: { match: Match }) {
       <DeskHeader kicker="Stage 1 · Start" title="Trading is open" clockLabel="Bell in" seconds={match.secondsLeft} urgent={match.secondsLeft <= 10} />
       <p className="mt-2 text-lg text-ink">
         Opening odds come from their records: {red.name} {red.record[0]}–{red.record[1]} vs {blue.name} {blue.record[0]}–{blue.record[1]}, so{' '}
-        <strong>{red.name} opens at {pct(match.openingPriceA)}</strong>. Back a robot in the market panel.
+        <strong>{red.name} opens at {pct(match.openingPriceA)}</strong>.
       </p>
       <ol className="mt-3 grid gap-2 sm:grid-cols-3">
         {ROUNDS.map((r, i) => (
@@ -84,7 +84,7 @@ function Fighting({ match }: { match: Match }) {
         seconds={match.secondsLeft}
       />
       <p className="mt-1 text-base text-mute">
-        {r.brief} Pitches are shuffled into A and B, so you judge the work, not the robot. Trading is closed until the vote is in.
+        {r.brief} Pitches are shuffled into A and B, so you judge the work, not the robot.
       </p>
       <PitchCards match={match} />
     </>
