@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { formatClock, mainEvent } from '../data/mock'
-import { ROUNDS, submissions } from '../data/matchContent'
+import { ROUNDS } from '../data/matchContent'
+import { listModels, type FightModel } from '../game/liveFight'
 import { SEC, type Match } from '../game/useMatch'
 
 const CORNER = ['var(--color-red)', 'var(--color-blue)'] as const
@@ -50,12 +52,103 @@ function DeskHeader({ kicker, title, clockLabel, seconds, urgent }: { kicker: st
   )
 }
 
+const KO_TEXT: Record<string, string> = {
+  timeout: 'ran out of time',
+  budget_exhausted: 'ran out of tokens',
+  http_error: 'the model errored',
+  empty: 'gave no answer',
+  aborted: 'was stopped',
+}
+
+/** Write the task and pick the two OpenRouter models. Any OpenRouter slug works, so paid models can use credit. */
+function Setup({ match }: { match: Match }) {
+  const [models, setModels] = useState<FightModel[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const locked = match.armed
+  useEffect(() => {
+    listModels().then(setModels, (e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)))
+  }, [])
+  const setModel = (i: 0 | 1, id: string) => {
+    const next: [string, string] = [...match.setup.models]
+    next[i] = id
+    match.setSetup({ models: next })
+  }
+  return (
+    <form
+      className="mt-3 space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        match.start()
+      }}
+    >
+      <label className="block">
+        <span className="label text-[11px] text-mute">Prompt for both robots</span>
+        <textarea
+          value={match.setup.task}
+          onChange={(e) => match.setSetup({ task: e.target.value })}
+          disabled={locked}
+          rows={3}
+          maxLength={3000}
+          className="mt-1 w-full resize-y border border-line bg-panel p-2 text-base text-ink disabled:opacity-60"
+        />
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {mainEvent.fighters.map((f, i) => (
+          <label key={f.id} className="block">
+            <span className="label text-[11px]" style={{ color: CORNER[i] }}>
+              {f.name} · model
+            </span>
+            <input
+              list="fight-models"
+              value={match.setup.models[i]}
+              onChange={(e) => setModel(i as 0 | 1, e.target.value.trim())}
+              disabled={locked}
+              spellCheck={false}
+              placeholder="registry id or vendor/model"
+              className="mt-1 w-full border border-line bg-panel p-2 font-mono text-sm text-ink disabled:opacity-60"
+            />
+          </label>
+        ))}
+        <datalist id="fight-models">
+          {models.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label} · {m.maker}
+            </option>
+          ))}
+        </datalist>
+      </div>
+      {loadError && <p className="text-sm text-red">Server unreachable ({loadError}). Is `pnpm dev:server` running?</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        {!locked && (
+          <button type="submit" disabled={!match.setup.task.trim()} className="btn-pixel min-h-11 cursor-pointer bg-blue px-4 font-display font-bold uppercase tracking-wider text-white disabled:opacity-50">
+            Start match
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => match.start(true)}
+          disabled={!match.setup.task.trim()}
+          className="btn-pixel min-h-11 cursor-pointer bg-red px-4 font-display font-bold uppercase tracking-wider text-white disabled:opacity-50"
+        >
+          Ring the bell now
+        </button>
+        <span className="text-sm text-mute">Each round is one live call per robot on OpenRouter (6 per match at most).</span>
+      </div>
+    </form>
+  )
+}
+
 function Start({ match }: { match: Match }) {
   const [red, blue] = mainEvent.fighters
   return (
     <>
-      <DeskHeader kicker="Stage 1 · Start" title="Trading is open" clockLabel="Bell in" seconds={match.secondsLeft} urgent={match.secondsLeft <= 10} />
-      <p className="mt-2 text-lg text-ink">
+      {match.armed ? (
+        <DeskHeader kicker="Stage 1 · Start" title="Trading is open" clockLabel="Bell in" seconds={match.secondsLeft} urgent={match.secondsLeft <= 10} />
+      ) : (
+        <DeskHeader kicker="Stage 1 · Start" title="Set up the fight" />
+      )}
+      <Setup match={match} />
+      <p className="mt-3 text-lg text-ink">
         Opening odds come from their records: {red.name} {red.record[0]}–{red.record[1]} vs {blue.name} {blue.record[0]}–{blue.record[1]}, so{' '}
         <strong>{red.name} opens at {pct(match.openingPriceA)}</strong>.
       </p>
@@ -121,14 +214,17 @@ function Voting({ match }: { match: Match }) {
  * reveal who is who); when voting opens the same cards get vote buttons.
  */
 function PitchCards({ match, voting = false }: { match: Match; voting?: boolean }) {
-  const r = ROUNDS[match.roundIndex]!
   const { swapped, myVote } = match.voting
+  const fight = match.fight
   return (
     <div className="mt-3 grid gap-3 md:grid-cols-2">
       {[0, 1].map((label) => {
-        const full = submissions[r.key][fighterOf(label, swapped)]
-        const shown = voting ? full : full.slice(0, Math.round(full.length * match.writing))
-        const writing = !voting && shown.length < full.length
+        const f = fighterOf(label, swapped)
+        const outcome = fight?.outcomes?.find((o) => o.idx === f)
+        const writing = !voting && !!fight && !fight.done
+        const streamed = fight?.texts[f] ?? ''
+        const ko = outcome?.status === 'ko' ? `Knocked out: ${KO_TEXT[outcome.reason ?? ''] ?? outcome.reason}.` : null
+        const shown = [streamed.trim() || (writing ? '' : ko ? '' : fight?.error ? `No answer: ${fight.error}` : ''), ko].filter(Boolean).join('\n\n')
         const words = shown.trim() ? shown.trim().split(/\s+/).length : 0
         const mine = myVote === label
         return (
@@ -150,7 +246,7 @@ function PitchCards({ match, voting = false }: { match: Match; voting?: boolean 
               className="mt-2 h-48 overflow-y-auto whitespace-pre-line pr-1 text-base leading-relaxed text-ink"
               aria-busy={writing}
             >
-              {shown}
+              {shown || (writing && <span className="text-mute">Thinking…</span>)}
               {writing && <span className="blink ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[3px] bg-ink" aria-hidden />}
             </p>
             {voting && (

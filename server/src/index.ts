@@ -7,6 +7,7 @@ import { openDb } from "./db/index.ts";
 import { drip, operator, publicClient } from "./chain.ts";
 import { createAccounts } from "./auth/accounts.ts";
 import { authRoutes } from "./routes/auth.ts";
+import { fightRoutes } from "./routes/fights.ts";
 
 const db = openDb(env.DB_PATH);
 const app = Fastify({ logger: true });
@@ -16,6 +17,7 @@ await app.register(websocket);
 
 const accounts = createAccounts(db, { domain: new URL(env.WEB_ORIGIN).host, chainId: publicClient.chain.id });
 await app.register(authRoutes(accounts).plugin);
+await app.register(fightRoutes());
 
 app.get("/health", async () => {
   const [block, operatorBal, dripBal] = await Promise.all([

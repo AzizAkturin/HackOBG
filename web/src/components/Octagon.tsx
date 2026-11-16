@@ -5,11 +5,13 @@ import { ROUNDS } from '../data/matchContent'
 import type { Match } from '../game/useMatch'
 import type { Phase as ArenaPhase } from '../game/arenaPhase'
 import { useFightStream } from '../game/useFightStream'
+import type { StreamEvent } from '../game/fightStream'
 import type { FightEvent } from '../three/director'
 import { FighterHud } from './FighterHud'
 import { MOVES } from '../three/moves'
 
 const Arena = lazy(() => import('../three/Arena'))
+const NO_EVENTS: StreamEvent[] = []
 
 interface Props {
   match: Match
@@ -24,7 +26,9 @@ const arenaPhase = (m: Match): ArenaPhase =>
 export function Octagon({ match, selected, onSelect }: Props) {
   const [red, blue] = mainEvent.fighters
   const fighting = match.phase === 'fighting'
-  const { fighters, signals } = useFightStream(fighting ? match.phaseLen - match.secondsLeft : 0, fighting)
+  const fightEvents = match.fight?.events ?? NO_EVENTS
+  const elapsed = fighting && match.fight ? (match.now - match.fight.startedAt) / 1000 : 0
+  const { fighters, signals } = useFightStream(fightEvents, elapsed, fighting)
   const [callout, setCallout] = useState<{ key: number; text: string; color: string } | null>(null)
 
   const onEvent = useCallback((e: FightEvent) => {
@@ -79,7 +83,7 @@ export function Octagon({ match, selected, onSelect }: Props) {
         {/* broadcast HUD: names, round-win pips, live progress */}
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-black/70 to-transparent p-3 sm:p-5">
           {mainEvent.fighters.map((f, i) => (
-            <FighterHud key={f.id} name={f.name} nameColor={brands[f.brand].ui} glow={brands[f.brand].glow} right={i === 1} live={fighting ? fighters[i] : null} wins={match.wins[i]!} record={`${f.record[0]}-${f.record[1]} · ELO ${f.elo}`} model={f.model} />
+            <FighterHud key={f.id} name={f.name} nameColor={brands[f.brand].ui} glow={brands[f.brand].glow} right={i === 1} live={fighting ? fighters[i] : null} wins={match.wins[i]!} record={`${f.record[0]}-${f.record[1]} · ELO ${f.elo}`} model={match.modelLabels[i]!} />
           ))}
         </div>
 
