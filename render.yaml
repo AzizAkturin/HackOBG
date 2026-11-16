@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: wab-server
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm --filter server start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      - key: DB_PATH
+        value: /tmp/wab.sqlite
+      - key: WEB_ORIGIN
+        sync: false
+      - key: MONAD_RPC_HTTP
+        sync: false
+      - key: MONAD_RPC_WS
+        sync: false
+      - key: OPERATOR_PK
+        sync: false
+      - key: OPERATOR_ADDRESS
+        sync: false
+      - key: DRIP_PK
+        sync: false
+      - key: DRIP_ADDRESS
+        sync: false
+      - key: WAB_ADDRESS
+        sync: false
+      - key: DEPLOY_BLOCK
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: PRIVY_APP_ID
+        sync: false
+      - key: PRIVY_APP_SECRET
+        sync: false

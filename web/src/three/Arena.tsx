@@ -6,8 +6,10 @@ import { ToneMappingMode, type ChromaticAberrationEffect } from 'postprocessing'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { brands } from '../data/brands'
+import type { FightSignals } from '../game/fightStream'
 import type { Phase } from '../game/arenaPhase'
 import { mainEvent } from '../data/mock'
+import { attachDebug } from './debug'
 import { FightDirector, type FightEvent } from './director'
 import { CameraRig, DirectorTick, Sparks } from './Effects'
 import { Ring } from './Ring'
@@ -21,6 +23,9 @@ interface Props {
   phase: Phase
   onSelect: (i: number) => void
   onEvent?: (e: FightEvent) => void
+  /** fighter index that won the vote, once known */
+  winner?: number | null
+  signals: FightSignals
 }
 
 /** Lens fringing that spikes on big hits. */
@@ -34,13 +39,31 @@ function ImpactLens({ director }: { director: FightDirector }) {
   return <ChromaticAberration ref={ref} offset={offset} radialModulation={false} modulationOffset={0} />
 }
 
-function Arena({ selected, phase, onSelect, onEvent }: Props) {
+function Arena({ selected, phase, onSelect, onEvent, signals, winner = null }: Props) {
   const locked = phase !== 'betting'
   const reduced = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches, [])
-  const director = useMemo(() => new FightDirector(), [])
+  const director = useMemo(() => {
+    const d = new FightDirector()
+    d.reduced = reduced
+    d.configure(
+      mainEvent.fighters.map((f) => ({ scale: chassis[brands[f.brand].chassis].rig.scale, wheel: !!chassis[brands[f.brand].chassis].rig.wheel })),
+      mainEvent.fighters,
+    )
+    return d
+  }, [reduced])
+  useEffect(() => {
+    director.winner = winner
+  }, [director, winner])
   useEffect(() => {
     director.listen((e) => onEvent?.(e))
   }, [director, onEvent])
+  useEffect(() => {
+    director.signals = signals
+  }, [director, signals])
+  useEffect(() => {
+    if (!new URLSearchParams(location.search).has('debug')) return
+    return attachDebug(director)
+  }, [director])
   const [dpr, setDpr] = useState(2)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [visible, setVisible] = useState(true)

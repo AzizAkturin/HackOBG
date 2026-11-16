@@ -30,10 +30,6 @@ export default function App() {
         <Route path="/u/:id" element={<ProfilePage />} />
       </Routes>
 
-      <footer className="border-t border-line py-5 text-center text-lg text-mute">
-        Monad testnet · MON here is play money with no value and can't be bought or cashed out.
-      </footer>
-
       <div aria-live="polite" className="pointer-events-none fixed bottom-6 left-1/2 z-50">
         {toast && (
           <p className="pop btn-pixel whitespace-nowrap bg-green px-5 py-3 font-display font-bold uppercase tracking-widest text-white">

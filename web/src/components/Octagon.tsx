@@ -4,7 +4,9 @@ import { mainEvent } from '../data/mock'
 import { ROUNDS } from '../data/matchContent'
 import type { Match } from '../game/useMatch'
 import type { Phase as ArenaPhase } from '../game/arenaPhase'
+import { useFightStream } from '../game/useFightStream'
 import type { FightEvent } from '../three/director'
+import { FighterHud } from './FighterHud'
 import { MOVES } from '../three/moves'
 
 const Arena = lazy(() => import('../three/Arena'))
@@ -19,17 +21,10 @@ interface Props {
 const arenaPhase = (m: Match): ArenaPhase =>
   m.phase === 'fighting' ? 'fighting' : m.phase === 'voting' ? 'rest' : m.phase === 'final' ? 'reveal' : 'betting'
 
-/**
- * Mock token progress for the current round. Replace with `progress` events from the live stream
- * (tokens / budget per fighter).
- */
-const MOCK_FINISH = [0.85, 0.95]
-
 export function Octagon({ match, selected, onSelect }: Props) {
   const [red, blue] = mainEvent.fighters
   const fighting = match.phase === 'fighting'
-  const elapsed = 1 - match.secondsLeft / match.phaseLen
-  const progress = MOCK_FINISH.map((d) => Math.min(1, Math.max(0, elapsed / d)))
+  const { fighters, signals } = useFightStream(fighting ? match.phaseLen - match.secondsLeft : 0, fighting)
   const [callout, setCallout] = useState<{ key: number; text: string; color: string } | null>(null)
 
   const onEvent = useCallback((e: FightEvent) => {
@@ -78,35 +73,13 @@ export function Octagon({ match, selected, onSelect }: Props) {
         aria-label={`The ring: ${red.name} in the red corner, ${blue.name} in the blue corner. ${tag}.`}
       >
         <Suspense fallback={<div className="grid h-full place-items-center text-mute">Loading the arena…</div>}>
-          <Arena selected={selected} phase={arenaPhase(match)} onSelect={onSelect} onEvent={onEvent} />
+          <Arena selected={selected} phase={arenaPhase(match)} onSelect={onSelect} onEvent={onEvent} signals={signals} />
         </Suspense>
 
         {/* broadcast HUD: names, round-win pips, live progress */}
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-black/70 to-transparent p-3 sm:p-5">
           {mainEvent.fighters.map((f, i) => (
-            <div key={f.id} className={`w-[42%] max-w-sm ${i === 1 ? 'text-right' : ''}`}>
-              <p className="headline text-xl uppercase leading-none sm:text-3xl" style={{ color: brands[f.brand].ui }}>
-                {f.name}
-              </p>
-              <p className={`mt-1.5 flex gap-1 ${i === 1 ? 'justify-end' : ''}`} aria-label={`${match.wins[i]} rounds won`}>
-                {[0, 1].map((k) => (
-                  <span key={k} className="h-2 w-5 skew-x-[-20deg]" style={{ background: k < match.wins[i]! ? brands[f.brand].glow : 'rgb(255 255 255 / 0.15)' }} />
-                ))}
-              </p>
-              {fighting && (
-                <div
-                  className={`mt-2 h-1.5 skew-x-[-20deg] bg-white/10 ${i === 1 ? 'ml-auto' : ''}`}
-                  role="progressbar"
-                  aria-label={`${f.name} task progress`}
-                  aria-valuenow={Math.round(progress[i]! * 100)}
-                >
-                  <div
-                    className={`h-full transition-[width] duration-500 ${i === 1 ? 'ml-auto' : ''}`}
-                    style={{ width: `${progress[i]! * 100}%`, background: brands[f.brand].glow, boxShadow: `0 0 10px ${brands[f.brand].glow}` }}
-                  />
-                </div>
-              )}
-            </div>
+            <FighterHud key={f.id} name={f.name} nameColor={brands[f.brand].ui} glow={brands[f.brand].glow} right={i === 1} live={fighting ? fighters[i] : null} wins={match.wins[i]!} />
           ))}
         </div>
 
@@ -114,9 +87,17 @@ export function Octagon({ match, selected, onSelect }: Props) {
           <p
             key={callout.key}
             className="pop headline pointer-events-none absolute left-1/2 top-[38%] whitespace-nowrap text-5xl uppercase sm:text-7xl"
-            style={{ color: callout.color, textShadow: '0 4px 24px rgb(0 0 0 / 0.8)' }}
           >
-            {callout.text}
+            <span
+              aria-hidden
+              className="absolute inset-0 text-white"
+              style={{ WebkitTextStroke: '0.22em #fff', filter: 'drop-shadow(0 0 18px rgb(255 255 255 / 0.55)) drop-shadow(0 6px 20px rgb(0 0 0 / 0.9))' }}
+            >
+              {callout.text}
+            </span>
+            <span className="relative" style={{ color: callout.color }}>
+              {callout.text}
+            </span>
           </p>
         )}
         {banner && justStarted && (

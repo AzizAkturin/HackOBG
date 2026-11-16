@@ -130,6 +130,18 @@
 }
 .feed-in { animation: feed-in 240ms ease-out; }
 
+@keyframes status-life {
+  0% { opacity: 0; transform: translateY(-4px); }
+  8% { opacity: 1; transform: none; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes status-fade {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.status-life { animation: status-life 10s ease-out forwards; }
+
 @keyframes pop {
   0% { opacity: 0; transform: translateX(-50%) scale(1.6); }
   100% { opacity: 1; transform: translateX(-50%) scale(1); }
@@ -143,5 +155,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .feed-in, .pop, .blink { animation: none; }
+  .status-life { animation-name: status-fade; }
   .btn-pixel:active:not(:disabled) { transform: none; }
 }

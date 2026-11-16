@@ -155,6 +155,10 @@ describe("runFight", () => {
     assert.deepEqual(a, { status: "ko", idx: 0, reason: "http_error", output: "partial work", pitch: KO_PITCH, tokensUsed: 3, finishedAtMs: 1500 });
     assert.equal(b?.status, "finished");
     assert.deepEqual(kinds(events, "ko"), [{ kind: "ko", fighter: 0, reason: "http_error" }]);
+    assert.deepEqual(
+      events.flatMap((e) => (e.kind === "status" && e.fighter === 0 ? [e.text] : [])),
+      ["Writing", "Knocked out"],
+    );
     assert.deepEqual(moves(events, 1), ["combo", "taunt"]);
     assert.ok(!JSON.stringify(events).includes("SECRETPITCH"));
   });

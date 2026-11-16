@@ -38,3 +38,11 @@ Accounts someone on the team must create before hour 1: Privy, OpenCode Zen (and
 ## Legal framing
 
 This is testnet only, with play money that has no value. The app must never offer a way to buy testnet MON or cash it out. Running it with real money would raise gambling licensing, KYC, and geofencing requirements that are out of scope.
+
+## Deploy (free)
+
+Web (Vercel or Cloudflare Pages): root directory `web`, build `pnpm build`, output `dist`. Set `VITE_API_URL` to the server's public URL (no trailing slash).
+
+Server, option A (demo): run `pnpm start:server` locally and expose it with `cloudflared tunnel --url http://localhost:8787`. Set `WEB_ORIGIN` to the deployed web URL (CORS and the sign-in domain both derive from it). Keep dev and deployed fully separate: local dev uses its own `server/.env` (`WEB_ORIGIN=http://localhost:5173`) and its own SQLite file, and the deployed server gets its own env and database.
+
+Server, option B (always on): Render Blueprint from `render.yaml`, fill the secret env vars in the dashboard. The free tier sleeps after 15 minutes idle and its disk is wiped on restart, so SQLite resets. Ping `/health` every 5 minutes (UptimeRobot) to keep it awake.

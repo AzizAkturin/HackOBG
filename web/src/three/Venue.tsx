@@ -5,7 +5,7 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { brands } from '../data/brands'
-import { mainEvent } from '../data/mock'
+import { firstName, mainEvent } from '../data/mock'
 import { Batch } from './StaticBatch'
 import { Crowd } from './crowd/Crowd'
 import type { Phase } from '../game/arenaPhase'
@@ -153,7 +153,7 @@ function Rafters() {
 /** LED boards above the far stands showing the matchup. */
 function drawBoard() {
   const [red, blue] = mainEvent.fighters
-  return screenTexture(red.name, blue.name, brands[red.brand].ui, brands[blue.brand].ui)
+  return screenTexture(firstName(red.name), firstName(blue.name), brands[red.brand].ui, brands[blue.brand].ui)
 }
 
 function Boards() {

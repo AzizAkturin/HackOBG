@@ -7,7 +7,6 @@ export type WeightClass = 'Flyweight' | 'Middleweight' | 'Heavyweight'
 export interface Fighter {
   id: number
   name: string
-  nickname: string
   record: [wins: number, losses: number]
   elo: number
   brand: BrandKey
@@ -100,8 +99,8 @@ export const mainEvent = {
   locksInSec: 90,
   watching: 1284,
   fighters: [
-    { id: 7, name: 'Kiln', nickname: 'The Compiler', record: [12, 5], elo: 1540, brand: 'particle', weightClass: 'Middleweight', accent: brands.particle.ink, streak: 2, avgFinish: 48, voteShare: 0.54, model: 'Particle 1', pool: 6.1, backers: 14 },
-    { id: 3, name: 'Obsidian', nickname: 'Quiet Storm', record: [15, 3], elo: 1612, brand: 'dots', weightClass: 'Middleweight', accent: brands.dots.ink, streak: 4, avgFinish: 71, voteShare: 0.61, model: 'dots Note', pool: 7.4, backers: 16 },
+    { id: 7, name: 'Particle Pacquiao', record: [12, 5], elo: 1540, brand: 'particle', weightClass: 'Middleweight', accent: brands.particle.ink, streak: 2, avgFinish: 48, voteShare: 0.54, model: 'Particle 1', pool: 6.1, backers: 14 },
+    { id: 3, name: 'Dotty Pimblett', record: [15, 3], elo: 1612, brand: 'dots', weightClass: 'Middleweight', accent: brands.dots.ink, streak: 4, avgFinish: 71, voteShare: 0.61, model: 'dots Note', pool: 7.4, backers: 16 },
   ] satisfies Fighter[],
 }
 
@@ -123,13 +122,35 @@ export const otherFights: {
   { roundId: 45, weightClass: 'Middleweight', task: 'Custom: "Roast my landing page in 50 words."', fighters: 2, status: 'upcoming', startsInSec: 780 },
 ]
 
-export const leaderboard = [
-  { rank: 1, name: 'Obsidian', weightClass: 'MW', record: '15-3', elo: 1612, accent: brands.dots.ink },
-  { rank: 2, name: 'Kiln', weightClass: 'MW', record: '12-5', elo: 1540, accent: brands.particle.ink },
-  { rank: 3, name: 'Prism', weightClass: 'HW', record: '9-4', elo: 1533, accent: brands.google.ink },
-  { rank: 4, name: 'Torrent', weightClass: 'MW', record: '10-6', elo: 1498, accent: brands.mistral.ink },
-  { rank: 5, name: 'Bluefin', weightClass: 'FW', record: '14-11', elo: 1487, accent: brands.poolside.ink },
+const roster: { name: string; brand: BrandKey; weightClass: WeightClass; record: [number, number]; elo: number }[] = [
+  { name: 'Dotty Pimblett', brand: 'dots', weightClass: 'Middleweight', record: [15, 3], elo: 1612 },
+  { name: 'Particle Pacquiao', brand: 'particle', weightClass: 'Middleweight', record: [12, 5], elo: 1540 },
+  { name: 'Gemma Shevchenko', brand: 'google', weightClass: 'Heavyweight', record: [9, 4], elo: 1533 },
+  { name: "Sean O'Mistral", brand: 'mistral', weightClass: 'Middleweight', record: [10, 6], elo: 1498 },
+  { name: 'Francis Lagunnou', brand: 'poolside', weightClass: 'Flyweight', record: [14, 11], elo: 1487 },
+  { name: 'Claude Pereira', brand: 'anthropic', weightClass: 'Heavyweight', record: [11, 4], elo: 1471 },
+  { name: 'Georges St-GPT', brand: 'openai', weightClass: 'Heavyweight', record: [13, 7], elo: 1455 },
+  { name: 'Conor McLlama', brand: 'meta', weightClass: 'Middleweight', record: [8, 5], elo: 1442 },
+  { name: 'Nate Nemotron', brand: 'nvidia', weightClass: 'Middleweight', record: [9, 8], elo: 1420 },
+  { name: 'Ernie Edwards', brand: 'baidu', weightClass: 'Flyweight', record: [7, 6], elo: 1401 },
+  { name: 'Terence North', brand: 'cohere', weightClass: 'Flyweight', record: [6, 7], elo: 1388 },
+  { name: 'Ling Weili', brand: 'inclusionai', weightClass: 'Flyweight', record: [5, 6], elo: 1360 },
+  { name: 'Flint Mayweather', brand: 'recursive', weightClass: 'Flyweight', record: [4, 8], elo: 1335 },
 ]
+
+const classAbbr: Record<WeightClass, string> = { Flyweight: 'FW', Middleweight: 'MW', Heavyweight: 'HW' }
+
+export const leaderboard = [...roster]
+  .sort((a, b) => b.elo - a.elo)
+  .slice(0, 5)
+  .map((f, i) => ({
+    rank: i + 1,
+    name: f.name,
+    weightClass: classAbbr[f.weightClass],
+    record: `${f.record[0]}-${f.record[1]}`,
+    elo: f.elo,
+    accent: brands[f.brand].ink,
+  }))
 
 export const crowdAmounts = [0.05, 0.05, 0.1, 0.1, 0.15, 0.2, 0.25, 0.5]
 

@@ -2,7 +2,7 @@
 
 The robots fight in a boxing style. Every move is cosmetic: the winner is decided by the crowd vote ([ADR-0007](adr/0007-winner-by-blind-onchain-vote.md)). The moves exist so the arena shows real LLM progress as a fight ([architecture.md §4](architecture.md#4-live-event-protocol)).
 
-This catalog lists what a fighter can do, what animation plays, and which LLM signal should trigger it once the live event stream exists. Until then, `web/src/three/director.ts` picks moves at random.
+This catalog lists what a fighter can do, what animation plays, and which LLM signal triggers it. `web/src/three/fight/choreographer.ts` plans each exchange (reads, blocks, counters, trades) and `web/src/three/director.ts` plays it; live stream cues pick who attacks and how hard, and a local AI fills the gaps.
 
 ## 1. Strikes
 
@@ -36,20 +36,32 @@ Boxing numbers the six basic punches 1 to 6. We add body and overhand variants f
 
 ## 3. Footwork
 
-| Move | What it looks like | Animation key |
-| --- | --- | --- |
-| Approach | Close the distance to punching range | director (fight distance) |
-| Step in | Quick lunge to start an attack | `stepIn` |
-| Circle | Both fighters orbit around the centre of the cage | director (orbit) |
-| Pivot | Turn on the lead foot to change angle | director (orbit) |
+Footwork runs in `web/src/three/footwork.ts`. The choreographer sends each fighter a movement intent; the locomotion layer steers with speed and acceleration limits, keeps the bodies apart, and keeps both inside the ropes.
+
+| Intent | What it looks like |
+| --- | --- |
+| `hold` | Keep the preferred distance with a small in-and-out bounce |
+| `press` | Walk the opponent down, mirroring their sideways drift |
+| `cutOff` | Stand between the opponent and the open ring, herding them to the ropes |
+| `retreat` | Back away; on the ropes, slide along them toward the open side |
+| `circle` | Orbit the opponent (not the ring centre) |
+| `pivot` | Swing about 80° round the opponent to get off the ropes or take an angle |
+| `clinch` | Tie up chest to chest until the referee breaks it |
+| `center`, `goto`, `locked` | Reset to the centre, walk to a corner or seat, stand still |
+
+Range bands (centre-to-centre distance): clinch < 1.3, inside < 1.75, punching < 2.4, outside < 3.4, then far. `stepIn`, `stepBack`, `stagger`, `bodyFold` and `knockdown` carry root motion, so the fighter really travels instead of snapping back.
 
 ## 4. Reactions to taking a hit
 
+Head and torso direction come from the spring layer (`web/src/three/physics.ts`), driven by the punch kind and hand: a lead hook turns the head to the defender's left, an uppercut snaps it up, a body shot folds them forward. The keyframed reactions only add the broken guard and the step back.
+
 | Move | Trigger | Animation key |
 | --- | --- | --- |
-| Head snap / stagger | Clean head shot | `stagger` |
+| Stagger | Clean head shot | `stagger` |
 | Body fold | Clean body shot | `bodyFold` |
-| Knockdown | Rare: a heavy punch (uppercut, overhand, hook) lands clean | `knockdown` (falls, gets back up) |
+| Rocked | Stun from clean shots passes the fighter's chin | springs loosen, knees buckle, `wobble`, `coverUp` |
+| Knee touch | A clean shot while rocked | `kneel` |
+| Knockdown | A clean power shot while rocked, after the first 20% of the round, at most once | `knockdown` (falls, gets back up) |
 
 ## 5. Showboating
 
@@ -75,6 +87,16 @@ The live protocol's `Move` type ([architecture.md §4](architecture.md#4-live-ev
 | `knockdown` | Final reveal, on the loser | `knockdown` (stays down), winner plays `victory` |
 
 The heaviest punches (`uppercut`, `overhand`) should be reserved for milestones, so the biggest moments on screen match the biggest moments in the model's output.
+
+## 7. Authoring moves
+
+Moves live in `web/src/three/moves.ts` as keyframes.
+
+- Each key is `[u, partial pose, ease]`. The ease shapes the segment arriving at that key: `in` for strikes (accelerate into impact), `out` for recoveries, `snap` for defences, `anticipate` for a wind-up dip, `back` for an overshoot.
+- `hit.at` must equal one key's `u`. Per-throw variation warps time on either side of it, so the hit key always lands exactly at the scheduled impact.
+- Channels a key leaves out drift from the pose the fighter was in back to guard, so moves chain without snapping to guard.
+- `vary` sets how much each throw differs (timing, reach, height, lean, power). `mirror` lets the move come off the other hand. `chain` makes the hips lead and the head trail.
+- `tell` is when the defender can first read the move, `recover` when the fighter can act again, `root` how far the move carries the fighter.
 
 ## Sources
 

@@ -3,11 +3,12 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo } from 'react'
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { FightDirector } from '../director'
-import { FIRST_ROW, ROW_DEPTH, ROW_RISE, TIERS } from '../stadium'
+import { CHAIR_H, COMMENTATORS, FIRST_ROW, ROW_DEPTH, ROW_RISE, STAGE_Y, TIERS } from '../stadium'
 import { COLS, faceAtlas, ROWS } from './faceAtlas'
 import { EMBLEMS, LINE_PATTERNS, PATTERNS, patternAtlas } from './patternAtlas'
-import { APPLAUSE, IDLE, IDLE_CALM, Mood, pick, POSES, REACTIONS, ROAR, type Allegiance, type MoodId, type Reaction } from './moods'
+import { APPLAUSE, HOST_APPLAUSE, HOST_IDLE, HOST_IDLE_CALM, HOST_LOOK, HOST_REACTIONS, HOST_ROAR, IDLE, IDLE_CALM, Mood, pick, POSES, REACTIONS, ROAR, type Allegiance, type MoodId, type Reaction } from './moods'
 
 const Hair = { Bald: 0, Short: 1, Afro: 2, Long: 3, Beanie: 4, Cap: 5 } as const
 type HairStyle = (typeof Hair)[keyof typeof Hair]
@@ -70,6 +71,7 @@ interface Seat {
   phase: number
   tier: number
   fan: Allegiance
+  host: boolean
   hair: HairStyle
   arms: 0 | 1 | 2
   tee: boolean
@@ -122,6 +124,7 @@ const seats: Seat[] = (() => {
           phase: rand() * 10,
           tier: k,
           fan,
+          host: false,
           hair: weighted(rand, HAIR_STYLES),
           arms: rand() < 0.6 ? 0 : rand() < 0.5 ? 1 : 2,
           tee: rand() < 0.35,
@@ -179,6 +182,34 @@ const seats: Seat[] = (() => {
       seat.ink.set(OTHER[Math.floor(prand() * OTHER.length)])
     }
   }
+  let hs = 733
+  const hostRand = () => ((hs = (hs * 1664525 + 1013904223) % 4294967296) / 4294967296)
+  const HOST_HAIR: HairStyle[] = [Hair.Short, Hair.Bald, Hair.Long, Hair.Short]
+  COMMENTATORS.forEach(([x, z], k) => {
+    out.push({
+      x,
+      y: STAGE_Y + CHAIR_H,
+      z,
+      yaw: Math.PI,
+      h: 1,
+      w: 1.05,
+      headScale: 1.05,
+      phase: hostRand() * 10,
+      tier: 0,
+      fan: 2,
+      host: true,
+      hair: HOST_HAIR[k % HOST_HAIR.length],
+      arms: 0,
+      tee: false,
+      skin: new THREE.Color(SKIN[Math.floor(hostRand() * SKIN.length)]),
+      hairColor: new THREE.Color(weighted(hostRand, HAIR)),
+      shirt: new THREE.Color('#0b0c0f'),
+      hat: new THREE.Color('#0b0c0f'),
+      pattern: -1,
+      param: [1, 0],
+      ink: new THREE.Color(),
+    })
+  })
   return out
 })()
 
@@ -283,6 +314,21 @@ function bodyGeometry() {
   return g
 }
 
+function boomGeometry() {
+  const from = new THREE.Vector3(0.235, -0.02, 0.03)
+  const to = new THREE.Vector3(0.07, -0.09, 0.19)
+  const dir = to.clone().sub(from)
+  const rod = new THREE.CylinderGeometry(0.007, 0.007, dir.length(), 6)
+  rod.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()))
+  rod.translate(...from.clone().addScaledVector(dir, 0.5).toArray())
+  const tip = new THREE.SphereGeometry(0.024, 8, 6).translate(to.x, to.y, to.z)
+  return mergeGeometries([rod, tip])!
+}
+
+function headsetMaterial() {
+  return new THREE.MeshStandardMaterial({ color: '#0a0a0c', roughness: 0.45, metalness: 0.35 })
+}
+
 function build() {
   const n = seats.length
   const std = () => new THREE.MeshStandardMaterial({ roughness: 1 })
@@ -314,6 +360,12 @@ function build() {
     }
   })
 
+  const hostSlot = new Int32Array(n).fill(-1)
+  let hostCount = 0
+  seats.forEach((s, i) => {
+    if (s.host) hostSlot[i] = hostCount++
+  })
+
   const hairCap = new THREE.SphereGeometry(HEAD_R * 1.07, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5).rotateX(-0.45)
   const afro = new THREE.SphereGeometry(0.28, 12, 10).translate(0, 0.1, -0.09)
   const longHair = new THREE.CapsuleGeometry(0.16, 0.3, 3, 8).translate(0, -0.14, -0.1)
@@ -330,6 +382,9 @@ function build() {
     afro: instanced(afro, std(), slots.afro.length),
     long: instanced(longHair, std(), slots.long.length),
     brim: instanced(brim, std(), slots.brim.length),
+    band: instanced(new THREE.TorusGeometry(0.235, 0.012, 6, 24, Math.PI), headsetMaterial(), hostCount),
+    cup: instanced(new THREE.CylinderGeometry(0.075, 0.075, 0.05, 14).rotateZ(Math.PI / 2), headsetMaterial(), hostCount * 2),
+    boom: instanced(boomGeometry(), headsetMaterial(), hostCount),
     flash: instanced(new THREE.SphereGeometry(0.05, 6, 4), new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), n),
   }
 
@@ -352,7 +407,7 @@ function build() {
     if (br >= 0) meshes.brim.setColorAt(br, c.copy(s.hat).multiplyScalar(0.8))
   })
 
-  return { meshes, slotOf, atlas, patterns }
+  return { meshes, slotOf, hostSlot, atlas, patterns }
 }
 
 const REST = POSES[Mood.Neutral]
@@ -375,10 +430,13 @@ function local(dst: THREE.Matrix4, parent: THREE.Matrix4, x: number, y: number, 
   dst.multiplyMatrices(parent, tmp)
 }
 
+const HOST_LOOK_HOLD = [1.2, 1]
+const HOST_LOOK_EVERY = [60, 120]
+
 const PRIORITY = { block: 1, slip: 1, duck: 1, taunt: 2, hit: 2, knockdown: 3 }
 
 export function Crowd({ director, reduced }: { director: FightDirector; reduced: boolean }) {
-  const { meshes, slotOf, atlas, patterns } = useMemo(() => build(), [])
+  const { meshes, slotOf, hostSlot, atlas, patterns } = useMemo(() => build(), [])
   const n = seats.length
 
   const st = useMemo(
@@ -393,6 +451,9 @@ export function Crowd({ director, reduced }: { director: FightDirector; reduced:
       nextRoll: new Float32Array(n),
       energy: new Float32Array(n),
       arm: new Float32Array(n * 6),
+      turn: new Float32Array(n),
+      lookUntil: new Float32Array(n),
+      nextLook: new Float32Array(n),
       lastSeq: 0,
       lastPhase: director.phase,
       shown: new Uint8Array(n).fill(255),
@@ -402,8 +463,9 @@ export function Crowd({ director, reduced }: { director: FightDirector; reduced:
 
   useLayoutEffect(() => {
     for (let i = 0; i < n; i++) {
-      st.base[i] = st.mood[i] = pick(IDLE_CALM, Math.random())
+      st.base[i] = st.mood[i] = pick(seats[i].host ? HOST_IDLE_CALM : IDLE_CALM, Math.random())
       st.nextRoll[i] = Math.random() * 6
+      st.nextLook[i] = 20 + Math.random() * 80
       for (let a = 0; a < 2; a++) st.arm.set([REST.out, REST.fwd, REST.bend], (i * 2 + a) * 3)
     }
   }, [n, st])
@@ -421,14 +483,15 @@ export function Crowd({ director, reduced }: { director: FightDirector; reduced:
     [meshes, atlas, patterns],
   )
 
-  const trigger = (r: Reaction, who: number, t: number, prio: number) => {
+  const trigger = (crowdR: Reaction, hostR: Reaction, who: number, t: number, prio: number) => {
     for (let i = 0; i < n; i++) {
+      const s = seats[i]
+      const r = s.host ? hostR : crowdR
       if (Math.random() > r.odds) continue
       if (t < st.until[i] && st.prio[i] > prio) continue
-      const s = seats[i]
       const table = s.fan === 2 ? r.neutral : s.fan === who ? r.mine : r.theirs
       st.pend[i] = pick(table, Math.random())
-      st.pendAt[i] = t + s.tier * 0.02 + Math.random() * 0.25
+      st.pendAt[i] = t + (s.host ? Math.random() * 0.06 : s.tier * 0.02 + Math.random() * 0.25)
       st.holdFor[i] = r.hold[0] + Math.random() * r.hold[1]
       st.prio[i] = prio
     }
@@ -438,17 +501,18 @@ export function Crowd({ director, reduced }: { director: FightDirector; reduced:
     const fighting = director.phase === 'fighting'
 
     if (director.phase !== st.lastPhase) {
-      if (director.phase === 'fighting') trigger(ROAR, 0, t, 3)
-      else if (st.lastPhase === 'fighting') trigger(APPLAUSE, 0, t, 3)
+      if (director.phase === 'fighting') trigger(ROAR, HOST_ROAR, 0, t, 3)
+      else if (st.lastPhase === 'fighting') trigger(APPLAUSE, HOST_APPLAUSE, 0, t, 3)
       st.lastPhase = director.phase
     }
     if (director.crowd.seq !== st.lastSeq) {
       st.lastSeq = director.crowd.seq
       const { kind, who } = director.crowd
-      trigger(REACTIONS[kind], who, t, PRIORITY[kind])
+      trigger(REACTIONS[kind], HOST_REACTIONS[kind], who, t, PRIORITY[kind])
     }
 
     const kEnergy = 1 - Math.exp(-6 * dt)
+    const kTurn = 1 - Math.exp(-7 * dt)
     const kArm = reduced ? 1 : 1 - Math.exp(-9 * dt)
     const faceAttr = meshes.face.geometry.getAttribute('aFace') as THREE.InstancedBufferAttribute
     let faceDirty = false
@@ -463,8 +527,20 @@ export function Crowd({ director, reduced }: { director: FightDirector; reduced:
       }
       if (t >= st.until[i]) st.mood[i] = st.base[i]
       if (t >= st.nextRoll[i]) {
-        st.base[i] = pick(fighting ? IDLE : IDLE_CALM, Math.random())
-        st.nextRoll[i] = t + 4 + Math.random() * 8
+        st.base[i] = pick(s.host ? (fighting ? HOST_IDLE : HOST_IDLE_CALM) : fighting ? IDLE : IDLE_CALM, Math.random())
+        st.nextRoll[i] = t + (s.host ? 1.5 + Math.random() * 3 : 4 + Math.random() * 8)
+      }
+      let yaw = s.yaw
+      if (s.host && !reduced) {
+        if (t >= st.nextLook[i]) {
+          st.lookUntil[i] = t + HOST_LOOK_HOLD[0] + Math.random() * HOST_LOOK_HOLD[1]
+          st.nextLook[i] = st.lookUntil[i] + HOST_LOOK_EVERY[0] + Math.random() * HOST_LOOK_EVERY[1]
+          st.mood[i] = pick(HOST_LOOK, Math.random())
+          st.until[i] = st.lookUntil[i]
+          st.prio[i] = 3
+        }
+        st.turn[i] += ((t < st.lookUntil[i] ? 1 : 0) - st.turn[i]) * kTurn
+        yaw = Math.PI * (1 - st.turn[i])
       }
       const mood = st.mood[i] as MoodId
       if (st.shown[i] !== mood) {
@@ -476,21 +552,33 @@ export function Crowd({ director, reduced }: { director: FightDirector; reduced:
       const def = POSES[mood]
       st.energy[i] += ((reduced ? 0 : def.bounce) - st.energy[i]) * kEnergy
       const e = st.energy[i]
-      const bounce = Math.abs(Math.sin(t * 5.5 + s.phase)) * e
+      const ex = s.host ? 1.8 : 1
+      const bounce = Math.abs(Math.sin(t * 5.5 + s.phase)) * e * ex
       const calm = reduced ? 0 : 1
 
       dummy.position.set(s.x, s.y + bounce + Math.sin(t * 1.4 + s.phase) * 0.006 * calm, s.z)
-      dummy.rotation.set(0, s.yaw + Math.sin(t * 0.6 + s.phase) * 0.07 * calm, 0)
+      const lean = s.host ? Math.min(1, e * 9) * 0.14 * Math.sin(t * 5.5 + s.phase) * calm * Math.cos(yaw) : 0
+      dummy.rotation.set(lean, yaw + Math.sin(t * 0.6 + s.phase) * 0.07 * calm, 0)
       dummy.updateMatrix()
       base.copy(dummy.matrix)
 
       local(out, base, 0, 0.5 * s.h, 0, 0, 0, 0, 1, 1.2 * s.w, s.h, 0.75 * s.w)
       meshes.body.setMatrixAt(i, out)
 
-      const nod = Math.min(1, e * 10) * 0.16 * Math.sin(t * 5.5 + s.phase) * calm
+      const nod = Math.min(1, e * 10) * 0.16 * ex * Math.sin(t * 5.5 + s.phase) * calm
       local(head, base, 0, 1.15 * s.h, 0, nod, Math.sin(t * 0.5 + s.phase) * 0.3 * calm, Math.sin(t * 0.9 + s.phase) * 0.05 * calm, s.headScale)
       meshes.face.setMatrixAt(i, head)
       meshes.head.setMatrixAt(i, head)
+
+      const ht = hostSlot[i]
+      if (ht >= 0) {
+        meshes.band.setMatrixAt(ht, head)
+        meshes.boom.setMatrixAt(ht, head)
+        for (let side = 0; side < 2; side++) {
+          local(out, head, side ? 0.225 : -0.225, -0.01, 0)
+          meshes.cup.setMatrixAt(ht * 2 + side, out)
+        }
+      }
 
       const hs = slotOf[i * 4]
       if (hs >= 0) {
@@ -513,7 +601,7 @@ export function Crowd({ director, reduced }: { director: FightDirector; reduced:
         st.arm[j] += (pose.out - st.arm[j]) * kArm
         st.arm[j + 1] += (pose.fwd - st.arm[j + 1]) * kArm
         st.arm[j + 2] += (pose.bend - st.arm[j + 2]) * kArm
-        const wave = reduced || !active ? 0 : Math.sin(t * pose.rate + s.phase + side * 1.7) * pose.wave
+        const wave = reduced || !active ? 0 : Math.sin(t * pose.rate + s.phase + side * 1.7) * pose.wave * ex
 
         local(joint, base, side * 0.25 * s.w, 0.8 * s.h, 0)
         local(upper, joint, 0, 0, 0, st.arm[j + 1] + wave * 0.15, 0, side * (st.arm[j] + wave * 0.35), 1, 1, 1, 1, 'ZXY')
@@ -524,7 +612,7 @@ export function Crowd({ director, reduced }: { director: FightDirector; reduced:
         meshes.hand.setMatrixAt(i * 2 + a, out)
       }
 
-      const on = !reduced && Math.random() < 0.004
+      const on = !reduced && !s.host && Math.random() < 0.004
       dummy.position.set(s.x, s.y + 1.7 * s.h, s.z)
       dummy.rotation.set(0, 0, 0)
       dummy.scale.setScalar(on ? 1 : 0)

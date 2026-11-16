@@ -24,7 +24,6 @@ export function FighterCard({ index, match, selected, onSelect, className = '' }
   const stats: [string, string][] = [
     ['Record', `${f.record[0]}-${f.record[1]}`],
     ['ELO', String(f.elo)],
-    ['Model', f.model],
     ['Rounds won', `${match.wins[index]} of 2 needed`],
   ]
 
@@ -46,8 +45,8 @@ export function FighterCard({ index, match, selected, onSelect, className = '' }
         </div>
         <div className="min-w-0">
           <h2 className="headline text-3xl uppercase leading-none">{f.name}</h2>
-          <p className="text-xl" style={{ color: f.accent }}>
-            "{f.nickname}"
+          <p className="text-xl italic" style={{ color: f.accent }}>
+            {f.model}
           </p>
         </div>
       </div>

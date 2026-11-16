@@ -5,6 +5,7 @@ export type FightEvent =
   | { kind: "progress"; fighter: number; tokens: number; budget: number }
   | { kind: "action"; fighter: number; move: Move; intensity: number }
   | { kind: "snippet"; fighter: number; text: string }
+  | { kind: "status"; fighter: number; text: string }
   | { kind: "ko"; fighter: number; reason: string }
   | { kind: "finished"; fighter: number; atMs: number }
   | { kind: "pitches"; pitches: { label: string; text: string; result: string }[] }

@@ -290,26 +290,41 @@ export function skirtTexture() {
 
 /** Stadium LED board showing the matchup. */
 export function screenTexture(left: string, right: string, leftColor: string, rightColor: string) {
-  const tex = canvasTexture(1024, (ctx, s) => {
-    ctx.fillStyle = '#05070b'
-    ctx.fillRect(0, 0, s, s)
-    ctx.font = '700 150px "Barlow Condensed", sans-serif'
-    ctx.textBaseline = 'middle'
-    ctx.textAlign = 'right'
-    ctx.fillStyle = leftColor
-    ctx.fillText(left.toUpperCase(), s * 0.44, s * 0.5)
-    ctx.textAlign = 'left'
-    ctx.fillStyle = rightColor
-    ctx.fillText(right.toUpperCase(), s * 0.56, s * 0.5)
-    ctx.textAlign = 'center'
-    ctx.fillStyle = '#e8e4dc'
-    ctx.font = '700 90px "Barlow Condensed", sans-serif'
-    ctx.fillText('VS', s / 2, s * 0.5)
-    // LED pixel grid
-    ctx.fillStyle = 'rgb(0 0 0 / 0.45)'
-    for (let y = 0; y < s; y += 6) ctx.fillRect(0, y, s, 2)
-    for (let x = 0; x < s; x += 6) ctx.fillRect(x, 0, 2, s)
-  })
+  const w = 2048
+  const h = 1024
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const ctx = c.getContext('2d')!
+  ctx.fillStyle = '#05070b'
+  ctx.fillRect(0, 0, w, h)
+  ctx.textBaseline = 'middle'
+  const maxWidth = w / 2 - 190
+  const fit = (text: string) => {
+    let size = 240
+    ctx.font = `700 ${size}px "Barlow Condensed", sans-serif`
+    const measured = ctx.measureText(text).width
+    if (measured > maxWidth) size = Math.floor((size * maxWidth) / measured)
+    ctx.font = `700 ${size}px "Barlow Condensed", sans-serif`
+  }
+  ctx.textAlign = 'right'
+  ctx.fillStyle = leftColor
+  fit(left.toUpperCase())
+  ctx.fillText(left.toUpperCase(), w / 2 - 110, h / 2)
+  ctx.textAlign = 'left'
+  ctx.fillStyle = rightColor
+  fit(right.toUpperCase())
+  ctx.fillText(right.toUpperCase(), w / 2 + 110, h / 2)
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#e8e4dc'
+  ctx.font = '700 110px "Barlow Condensed", sans-serif'
+  ctx.fillText('VS', w / 2, h / 2)
+  // LED pixel grid
+  ctx.fillStyle = 'rgb(0 0 0 / 0.45)'
+  for (let y = 0; y < h; y += 6) ctx.fillRect(0, y, w, 2)
+  for (let x = 0; x < w; x += 6) ctx.fillRect(x, 0, 2, h)
+  const tex = new THREE.CanvasTexture(c)
+  tex.anisotropy = 8
   tex.colorSpace = THREE.SRGBColorSpace
   return tex
 }
