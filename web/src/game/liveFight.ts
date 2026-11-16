@@ -13,7 +13,8 @@ export type FightMessage =
   | { type: 'done'; outcomes: FightOutcome[] }
   | { type: 'error'; message: string }
 
-export const DEFAULT_MODELS: [string, string] = ['nemotron-3.5-lightning', 'ernie-5.5-flash']
+/** matches the placeholder fighters' brands: Claude Pereira is Anthropic, Georges St-GPT is OpenAI */
+export const DEFAULT_MODELS: [string, string] = ['anthropic/claude-sonnet-5.5', 'openai/gpt-6.1-sol']
 
 export async function listModels(): Promise<FightModel[]> {
   const res = await fetch(`${API_URL}/api/fights/models`)
