@@ -26,7 +26,8 @@ export function resolveModel(id: string): ModelEntry | null {
     label: id.split("/")[1]!.replace(/:free$/, ""),
     maker: id.split("/")[0]!,
     weightClass: "middleweight",
-    routes: [{ provider: "openrouter", model: id, reasoning: "off" }],
+    // many paid models reject reasoning off outright, so ask for low effort to keep the token budget for the answer
+    routes: [{ provider: "openrouter", model: id, reasoning: "low" }],
   };
 }
 
@@ -104,9 +105,9 @@ export function fightRoutes(config: FightConfig) {
           fighters: body.fighters.map((f, idx) => ({ idx, name: f.name, persona: persona(f.name), memories: [], model: entries[idx]! })),
           limits: FIGHT_LIMITS,
           emit: (event) => send({ type: "event", tMs: Date.now() - startedAt, event }),
-          runFighter: (opts) => {
+          runFighter: async (opts) => {
             const fighter = entries.indexOf(opts.entry);
-            return run({
+            const result = await run({
               ...opts,
               signal: opts.signal ? AbortSignal.any([opts.signal, abort.signal]) : abort.signal,
               onDelta: (d) => {
@@ -114,6 +115,8 @@ export function fightRoutes(config: FightConfig) {
                 if (d.kind === "content") send({ type: "text", fighter, text: d.text });
               },
             });
+            if (result.status === "ko") req.log.warn({ model: result.route.model, reason: result.reason, detail: result.detail }, "fighter knocked out");
+            return result;
           },
         });
         send({
